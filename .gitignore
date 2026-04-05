@@ -1,0 +1,28 @@
+# OS / IDE
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.vscode/
+.idea/
+
+# Node / npm (将来バックエンド追加時)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 環境変数
+.env
+.env.local
+.env.*.local
+
+# ビルド成果物
+dist/
+build/
+
+# ログ
+*.log
