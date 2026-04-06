@@ -81,11 +81,18 @@ app.post('/tables/meeting_records', async (req, res) => {
     const rows = await tppGet('meeting_records');
     const existing = rows.find(x => x.sheet_name === r.sheet_name && x.source_file === r.source_file);
     if (existing) {
-      const result = await tppPost('meeting_records', { ...r, id: existing.id });
-      res.json(result.data?.[0] || { ...r, id: existing.id });
+      await tppPost('meeting_records', { ...r, id: existing.id });
+      // 更新後に最新レコードをGETして返す
+      const updated = await tppGet('meeting_records');
+      const saved = updated.find(x => x.id === existing.id);
+      res.json(saved || { ...r, id: existing.id });
     } else {
-      const result = await tppPost('meeting_records', r);
-      res.json(result.data?.[0] || r);
+      await tppPost('meeting_records', r);
+      // 追加後に最新レコードをGETして返す（最後に追加されたもの）
+      const updated = await tppGet('meeting_records');
+      const saved = updated.find(x => x.sheet_name === r.sheet_name && x.source_file === r.source_file)
+                 || updated[updated.length - 1];
+      res.json(saved || r);
     }
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -93,8 +100,12 @@ app.post('/tables/meeting_records', async (req, res) => {
 // PUT /tables/meeting_records/:id
 app.put('/tables/meeting_records/:id', async (req, res) => {
   try {
-    const result = await tppPost('meeting_records', { ...req.body, id: parseInt(req.params.id) });
-    res.json(result.data?.[0] || req.body);
+    const id = parseInt(req.params.id);
+    await tppPost('meeting_records', { ...req.body, id });
+    // 更新後に最新レコードをGETして返す
+    const rows = await tppGet('meeting_records');
+    const updated = rows.find(x => x.id === id);
+    res.json(updated || req.body);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
