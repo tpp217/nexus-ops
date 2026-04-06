@@ -421,6 +421,17 @@
       .stp-person-col { padding-left:0; }
       .btn-analyze-primary { font-size:0.72rem; padding:11px 18px; }
     }
+  /* ── AI分析スタイル ── */
+  .btn-ai-analyze { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; font-size:0.72rem; font-weight:700; background:linear-gradient(90deg,#7c3aed,#2563eb); color:#fff; border:none; border-radius:6px; cursor:pointer; letter-spacing:.04em; transition:opacity .2s; }
+  .btn-ai-analyze:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-ai-analyze:hover:not(:disabled) { opacity:.85; }
+  .ai-result-block { margin-top:16px; padding:14px; background:rgba(37,99,235,.07); border:1px solid rgba(37,99,235,.25); border-radius:8px; }
+  .ai-person-block { background:rgba(124,58,237,.07); border-color:rgba(124,58,237,.25); }
+  .ai-result-header { font-size:0.78rem; font-weight:800; color:#60a5fa; letter-spacing:.06em; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+  .ai-loading { display:flex; align-items:center; gap:8px; color:var(--text-dim); font-size:0.74rem; padding:10px; }
+  .ai-error { color:#f87171; font-size:0.72rem; padding:10px; background:rgba(239,68,68,.08); border-radius:6px; }
+  .al-blue { border-left-color:#2563eb !important; }
+  .al-item.al-blue i { color:#60a5fa !important; }
   </style>
 </head>
 <body>
@@ -946,6 +957,12 @@ function renderPersonProfile(personName, records) {
         <div class="pp-profile-text">
           1件のMTデータを読み込みました。複数回分のデータを読み込むと、過去から現在への変化・特徴・今後の方針をまとめた総合レポートが生成されます。
         </div>
+        <div style="margin-top:12px;">
+          <button class="btn-ai-analyze" id="btnAiPerson1" onclick="triggerAiPerson('${escHtml(personName)}')">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> AI分析を実行
+          </button>
+        </div>
+        <div id="aiPersonResult1"></div>
       </div>`;
     return;
   }
@@ -965,7 +982,11 @@ function renderPersonProfile(personName, records) {
             </div>
           </div>
         </div>
+        <button class="btn-ai-analyze" id="btnAiPerson" onclick="triggerAiPerson('${escHtml(personName)}')">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> AI総合分析
+        </button>
       </div>
+      <div id="aiPersonResult"></div>
 
       <!-- 人物評価（カウンセラー視点） -->
       <div class="pp-block pp-grid-full blue-border" style="margin-bottom:20px;">
@@ -1234,6 +1255,58 @@ document.getElementById('btnBulkPDF').addEventListener('click', async () => {
 function setProgress(show, msg = '') {
   document.getElementById('progressWrap').classList.toggle('active', show);
   if (msg) document.getElementById('progressText').textContent = msg;
+}
+
+/* ══════════════════════════════════════════
+   AI分析ハンドラ
+══════════════════════════════════════════ */
+
+/* 各カードのAI分析ボタン */
+async function triggerAiCard(btn, recordId) {
+  const resultEl = document.getElementById(`ai-result-${recordId}`);
+  if (!resultEl) return;
+
+  // 対象レコードを取得
+  const record = allRecords.find(r => (r.id || allRecords.indexOf(r)) == recordId);
+  if (!record) { resultEl.innerHTML = '<div class="ai-error">レコードが見つかりません</div>'; return; }
+
+  btn.disabled = true;
+  resultEl.innerHTML = '<div class="ai-loading"><i class="fa-solid fa-spinner fa-spin"></i> Gemini が分析中... (数秒かかります)</div>';
+
+  try {
+    const result = await aiAnalyzeRecord(record);
+    resultEl.innerHTML = renderAiResult(result);
+    btn.style.display = 'none'; // 実行後は非表示
+  } catch (err) {
+    const msg = err.message.includes('429') || err.message.includes('quota')
+      ? '⚠️ 本日の無料枠(20回)を使い切りました。明日またお試しください。'
+      : `エラー: ${err.message}`;
+    resultEl.innerHTML = `<div class="ai-error">${msg}</div>`;
+    btn.disabled = false;
+  }
+}
+
+/* 個人プロファイルのAI総合分析ボタン */
+async function triggerAiPerson(personName) {
+  const resultEl = document.getElementById('aiPersonResult') || document.getElementById('aiPersonResult1');
+  const btn = document.getElementById('btnAiPerson') || document.getElementById('btnAiPerson1');
+  if (!resultEl || !personMap[personName]) return;
+
+  if (btn) btn.disabled = true;
+  resultEl.innerHTML = '<div class="ai-loading"><i class="fa-solid fa-spinner fa-spin"></i> Gemini が総合分析中... (10秒ほどかかります)</div>';
+
+  try {
+    const records = personMap[personName];
+    const result = await aiAnalyzePerson(records, personName);
+    resultEl.innerHTML = renderAiPersonResult(result);
+    if (btn) btn.style.display = 'none';
+  } catch (err) {
+    const msg = err.message.includes('429') || err.message.includes('quota')
+      ? '⚠️ 本日の無料枠(20回)を使い切りました。明日またお試しください。'
+      : `エラー: ${err.message}`;
+    resultEl.innerHTML = `<div class="ai-error">${msg}</div>`;
+    if (btn) btn.disabled = false;
+  }
 }
 
 /* ── 初期ロード ── */

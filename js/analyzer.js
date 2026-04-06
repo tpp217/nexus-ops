@@ -965,6 +965,7 @@ function renderTimelineCard(record, index) {
         ${hasTask     ? `<button class="tc-tab" data-tab="tasks">📌 指示・進捗</button>` : ''}
         ${hasContext  ? `<button class="tc-tab" data-tab="context">🧩 背景・対応</button>` : ''}
         ${hasAction   ? `<button class="tc-tab" data-tab="actions">▶ 次回アクション</button>` : ''}
+        <button class="tc-tab" data-tab="ai">✨ AI分析</button>
       </div>
 
       <!-- 議事内容 -->
@@ -1098,6 +1099,19 @@ function renderTimelineCard(record, index) {
           </div>
         </div>
       </div>` : ''}
+      <!-- AI分析パネル -->
+      <div class="tc-tab-panel" data-panel="ai">
+        <div id="ai-panel-${record.id || index}" class="ai-card-panel">
+          <div style="padding:8px 0;">
+            <button class="btn-ai-analyze" onclick="triggerAiCard(this, '${record.id || index}')">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> AI分析を実行（Gemini）
+            </button>
+            <span style="font-size:0.68rem; color:var(--text-dim); margin-left:10px;">1日20回の無料枠があります</span>
+          </div>
+          <div id="ai-result-${record.id || index}"></div>
+        </div>
+      </div>
+
     </div>
   </div>`;
 }
@@ -1120,4 +1134,129 @@ function tryParse(v, fallback) {
   if (Array.isArray(v)) return v;
   if (!v) return fallback;
   try { const r = JSON.parse(v); return Array.isArray(r) ? r : fallback; } catch { return fallback; }
+}
+
+/* ══════════════════════════════════════════════════
+   ★ AI分析エンジン（Gemini 2.5 Flash）
+   VMバックエンド経由でGemini APIを呼び出す
+══════════════════════════════════════════════════ */
+const AI_API_BASE = 'https://zvtfabus.gensparkclaw.com/nexus-api/api';
+
+/* ─── 単票AI分析 ─── */
+async function aiAnalyzeRecord(record) {
+  const resp = await fetch(`${AI_API_BASE}/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content_main:    record.content_main    || '',
+      tasks_given:     record.tasks_given     || '',
+      personal_issues: record.personal_issues || '',
+      evaluation:      record.evaluation      || '',
+      target:          record.target          || '',
+      sheet_name:      record.sheet_name      || ''
+    })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+    throw new Error(err.error || `HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
+/* ─── 個人全体AI分析 ─── */
+async function aiAnalyzePerson(records, personName) {
+  const resp = await fetch(`${AI_API_BASE}/analyze/person`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ records, target: personName })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+    throw new Error(err.error || `HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
+/* ─── AI結果HTMLレンダリング（単票） ─── */
+function renderAiResult(result) {
+  if (!result) return '';
+  const items = (arr) => Array.isArray(arr)
+    ? arr.map(s => `<div class="al-item al-blue"><i class="fa-solid fa-robot"></i><span>${escHtml(s)}</span></div>`).join('')
+    : '';
+  return `
+  <div class="ai-result-block">
+    <div class="ai-result-header"><i class="fa-solid fa-wand-magic-sparkles"></i> Gemini AI 分析</div>
+    ${result.ai_summary ? `
+    <div class="tc-section">
+      <div class="section-title" style="color:var(--c-blue)"><i class="fa-solid fa-comment-dots"></i> AI サマリー</div>
+      <div class="prose-item prose-blue">${escHtml(result.ai_summary)}</div>
+    </div>` : ''}
+    ${result.ai_person_profile ? `
+    <div class="tc-section">
+      <div class="section-title" style="color:var(--c-blue)"><i class="fa-solid fa-fingerprint"></i> AI プロファイル</div>
+      <div class="prose-item prose-blue">${escHtml(result.ai_person_profile)}</div>
+    </div>` : ''}
+    ${result.ai_strengths?.length ? `
+    <div class="tc-section">
+      <div class="section-title green"><i class="fa-solid fa-arrow-trend-up"></i> AI が見た強み</div>
+      <div class="analysis-list">${items(result.ai_strengths)}</div>
+    </div>` : ''}
+    ${result.ai_challenges?.length ? `
+    <div class="tc-section">
+      <div class="section-title red"><i class="fa-solid fa-circle-exclamation"></i> AI が見た課題</div>
+      <div class="analysis-list">${items(result.ai_challenges)}</div>
+    </div>` : ''}
+    ${result.ai_concerns?.length ? `
+    <div class="tc-section">
+      <div class="section-title red"><i class="fa-solid fa-shield-exclamation"></i> AI 懸念事項</div>
+      <div class="analysis-list">${items(result.ai_concerns)}</div>
+    </div>` : ''}
+    ${result.ai_next_actions?.length ? `
+    <div class="tc-section">
+      <div class="section-title gold"><i class="fa-solid fa-list-check"></i> AI 推奨アクション</div>
+      <div class="analysis-list">${items(result.ai_next_actions)}</div>
+    </div>` : ''}
+  </div>`;
+}
+
+/* ─── AI結果HTMLレンダリング（個人全体） ─── */
+function renderAiPersonResult(result) {
+  if (!result) return '';
+  const items = (arr) => Array.isArray(arr)
+    ? arr.map(s => `<div class="al-item al-blue"><i class="fa-solid fa-robot"></i><span>${escHtml(s)}</span></div>`).join('')
+    : '';
+  return `
+  <div class="ai-result-block ai-person-block">
+    <div class="ai-result-header"><i class="fa-solid fa-wand-magic-sparkles"></i> Gemini AI 総合評価</div>
+    ${result.ai_overall_summary ? `
+    <div class="tc-section">
+      <div class="section-title" style="color:var(--c-blue)"><i class="fa-solid fa-comment-dots"></i> 総合評価</div>
+      <div class="prose-item prose-blue">${escHtml(result.ai_overall_summary)}</div>
+    </div>` : ''}
+    ${result.ai_risk_assessment ? `
+    <div class="tc-section">
+      <div class="section-title red"><i class="fa-solid fa-radar"></i> リスク＆機会</div>
+      <div class="prose-item prose-blue">${escHtml(result.ai_risk_assessment)}</div>
+    </div>` : ''}
+    ${result.ai_persistent_strengths?.length ? `
+    <div class="tc-section">
+      <div class="section-title green"><i class="fa-solid fa-medal"></i> 一貫した強み</div>
+      <div class="analysis-list">${items(result.ai_persistent_strengths)}</div>
+    </div>` : ''}
+    ${result.ai_persistent_challenges?.length ? `
+    <div class="tc-section">
+      <div class="section-title red"><i class="fa-solid fa-repeat"></i> 継続課題</div>
+      <div class="analysis-list">${items(result.ai_persistent_challenges)}</div>
+    </div>` : ''}
+    ${result.ai_growth_track?.length ? `
+    <div class="tc-section">
+      <div class="section-title" style="color:var(--c-blue)"><i class="fa-solid fa-timeline"></i> 成長の軌跡</div>
+      <div class="analysis-list">${items(result.ai_growth_track)}</div>
+    </div>` : ''}
+    ${result.ai_future_direction?.length ? `
+    <div class="tc-section">
+      <div class="section-title gold"><i class="fa-solid fa-compass"></i> 育成方針（AI提案）</div>
+      <div class="analysis-list">${items(result.ai_future_direction)}</div>
+    </div>` : ''}
+  </div>`;
 }
