@@ -1102,13 +1102,26 @@ function renderTimelineCard(record, index) {
       <!-- AI分析パネル -->
       <div class="tc-tab-panel" data-panel="ai">
         <div id="ai-panel-${record.id || index}" class="ai-card-panel">
+          ${hasAiData ? renderAiResult({
+            ai_summary: aiSummary,
+            ai_strengths: aiStrengths,
+            ai_challenges: aiChallenges,
+            ai_concerns: aiConcerns,
+            ai_next_actions: aiNextActions,
+            ai_person_profile: aiProfile
+          }) : `
           <div style="padding:8px 0;">
             <button class="btn-ai-analyze" onclick="triggerAiCard(this, '${record.id || index}')">
-              <i class="fa-solid fa-wand-magic-sparkles"></i> AI分析を実行（Gemini）
+              <i class="fa-solid fa-wand-magic-sparkles"></i> AI分析を実行（Genspark）
             </button>
-            <span style="font-size:0.68rem; color:var(--text-dim); margin-left:10px;">1日20回の無料枠があります</span>
-          </div>
+          </div>`}
           <div id="ai-result-${record.id || index}"></div>
+          ${hasAiData ? `
+          <div style="margin-top:8px; text-align:right;">
+            <button class="btn-ai-analyze" style="font-size:0.65rem;opacity:0.6;" onclick="triggerAiCard(this, '${record.id || index}')">
+              <i class="fa-solid fa-rotate-right"></i> 再分析
+            </button>
+          </div>` : ''}
         </div>
       </div>
 
