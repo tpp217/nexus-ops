@@ -26,3 +26,5 @@ build/
 
 # ログ
 *.log
+node_modules/
+.env

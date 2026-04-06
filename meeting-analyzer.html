@@ -421,6 +421,28 @@
       .stp-person-col { padding-left:0; }
       .btn-analyze-primary { font-size:0.72rem; padding:11px 18px; }
     }
+  /* ── AI分析スタイル ── */
+  .btn-ai-analyze { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; font-size:0.72rem; font-weight:700; background:linear-gradient(90deg,#7c3aed,#2563eb); color:#fff; border:none; border-radius:6px; cursor:pointer; letter-spacing:.04em; transition:opacity .2s; }
+  .btn-ai-analyze:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-ai-analyze:hover:not(:disabled) { opacity:.85; }
+  .ai-result-block { margin-top:16px; padding:14px; background:rgba(37,99,235,.07); border:1px solid rgba(37,99,235,.25); border-radius:8px; }
+  .ai-person-block { background:rgba(124,58,237,.07); border-color:rgba(124,58,237,.25); }
+  .ai-result-header { font-size:0.78rem; font-weight:800; color:#60a5fa; letter-spacing:.06em; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+  .ai-loading { display:flex; align-items:center; gap:8px; color:var(--text-dim); font-size:0.74rem; padding:10px; }
+  .ai-error { color:#f87171; font-size:0.72rem; padding:10px; background:rgba(239,68,68,.08); border-radius:6px; }
+  .al-blue { border-left-color:#2563eb !important; }
+  .al-item.al-blue i { color:#60a5fa !important; }
+  .ai-review-text {
+    font-size: 0.78rem;
+    line-height: 1.85;
+    color: var(--text-main);
+    padding: 10px 14px;
+    background: rgba(37,99,235,.04);
+    border-left: 3px solid rgba(37,99,235,.3);
+    border-radius: 0 6px 6px 0;
+    white-space: pre-wrap;
+  }
+  .ai-result-header { justify-content: flex-start; }
   </style>
 </head>
 <body>
@@ -451,14 +473,11 @@
     </div>
   </div>
   <div class="page-actions">
-    <button class="btn btn-sm btn-blue" id="btnLoadSaved">
-      <i class="fa-solid fa-database"></i> 保存データ読込
-    </button>
     <button class="btn btn-sm" id="btnTogglePdfPanel" style="display:none;border-color:var(--c-gold);color:var(--c-gold);background:rgba(204,136,0,0.06);">
       <i class="fa-solid fa-file-pdf"></i> PDF出力
     </button>
-    <button class="btn btn-sm btn-red" id="btnClearAll" style="display:none;">
-      <i class="fa-solid fa-trash"></i> 全削除
+    <button class="btn btn-sm btn-red" id="btnClearAll">
+      <i class="fa-solid fa-trash"></i> データ全消去
     </button>
   </div>
 </div>
@@ -606,8 +625,8 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
-<script src="js/analyzer.js"></script>
-<script src="js/pdf-export.js"></script>
+<script src="js/analyzer.js?v=1775485168"></script>
+<script src="js/pdf-export.js?v=1775485168"></script>
 <script>
 /* ============================================================
    Controller – meeting-analyzer.html v3.0
@@ -702,6 +721,9 @@ async function extractExcelFromZip(zipFile, listEl) {
   return results;
 }
 
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 function addFLI(c, cls, icon, text) {
   const d = document.createElement('div');
   d.className = `file-list-item ${cls}`;
@@ -739,19 +761,65 @@ async function runAnalysis() {
     }
   }
 
-  setProgress(false);
   if (newRecords.length) {
-    showToast(`${newRecords.length}件を分析しました！`, 'success');
+    showToast(`${newRecords.length}件を保存しました。AI分析を開始します...`, 'info');
     allRecords = await loadMeetingRecords();
     buildPersonMap(allRecords);
     renderPersonTabs();
     renderCurrentPerson();
-    document.getElementById('btnClearAll').style.display = 'inline-flex';
     document.getElementById('btnTogglePdfPanel').style.display = 'inline-flex';
+
+    // AI分析を自動実行（バックグラウンドで全件処理）
+    setProgress(true, 'AI分析中... しばらくお待ちください');
+    await runAiAnalysisForAll(newRecords);
+    setProgress(false);
+    // AI結果を反映して再描画
+    allRecords = await loadMeetingRecords();
+    buildPersonMap(allRecords);
+    renderPersonTabs();
+    renderCurrentPerson();
+    showToast('AI分析が完了しました！', 'success');
   } else {
+    setProgress(false);
     showToast('議事録データが見つかりませんでした。', 'warn');
   }
   document.getElementById('btnAnalyze').disabled = false;
+}
+
+/* ── 全レコードのAI分析を順次実行してDBを更新 ── */
+async function runAiAnalysisForAll(records) {
+  for (const record of records) {
+    try {
+      setProgress(true, `AI分析中: ${record.target || record.sheet_name} (${records.indexOf(record)+1}/${records.length})`);
+      const result = await aiAnalyzeRecord(record);
+      if (result.ok) {
+        // AI結果をDBに保存（PUT）
+        const id = record.id;
+        if (id) {
+          await fetch(`tables/meeting_records/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ai_review:           result.ai_review           || '',
+              ai_status:           result.ai_status           || '',
+              ai_actions_decided:  JSON.stringify(result.ai_actions_decided  || []),
+              ai_actions_pending:  JSON.stringify(result.ai_actions_pending  || []),
+              ai_actions_planned:  JSON.stringify(result.ai_actions_planned  || []),
+              // 旧フィールドもクリア
+              ai_summary:         '',
+              ai_strengths:       '[]',
+              ai_challenges:      '[]',
+              ai_concerns:        '[]',
+              ai_next_actions:    '[]',
+              ai_person_profile:  ''
+            })
+          });
+        }
+      }
+    } catch(e) {
+      console.warn('AI analyze error for record', record.id, e.message);
+    }
+  }
 }
 
 document.getElementById('btnLoadSaved').addEventListener('click', async () => {
@@ -762,7 +830,6 @@ document.getElementById('btnLoadSaved').addEventListener('click', async () => {
     buildPersonMap(allRecords);
     renderPersonTabs();
     renderCurrentPerson();
-    document.getElementById('btnClearAll').style.display = 'inline-flex';
     document.getElementById('btnTogglePdfPanel').style.display = 'inline-flex';
 
     // 既存データが空かチェック
@@ -784,7 +851,7 @@ document.getElementById('btnClearAll').addEventListener('click', async () => {
   allRecords = []; personMap = {}; storeMap = {}; activePerson = null; activeStore = null;
   setProgress(false);
   renderEmpty();
-  document.getElementById('btnClearAll').style.display = 'none';
+
   document.getElementById('btnTogglePdfPanel').style.display = 'none';
   document.getElementById('pdfDownloadPanel').classList.remove('active');
   showToast('全データを削除しました。', 'warn');
@@ -927,7 +994,7 @@ function renderPersonProfile(personName, records) {
   const lastPeriod  = lastRecord?.sheet_name || '--';
   const periodLabel = records.length > 1 ? `${firstPeriod} → ${lastPeriod}` : firstPeriod;
 
-  if (!report) {
+  if (!report || records.length < 2) {
     // 1件のみ
     area.innerHTML = `
       <div class="person-profile-panel hud-panel blue anim-fade-in" style="margin-bottom:24px;">
@@ -946,6 +1013,12 @@ function renderPersonProfile(personName, records) {
         <div class="pp-profile-text">
           1件のMTデータを読み込みました。複数回分のデータを読み込むと、過去から現在への変化・特徴・今後の方針をまとめた総合レポートが生成されます。
         </div>
+        <div style="margin-top:12px;">
+          <button class="btn-ai-analyze" id="btnAiPerson1" onclick="triggerAiPerson('${escHtml(personName)}')">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> AI分析を実行
+          </button>
+        </div>
+        <div id="aiPersonResult1"></div>
       </div>`;
     return;
   }
@@ -965,7 +1038,11 @@ function renderPersonProfile(personName, records) {
             </div>
           </div>
         </div>
+        <button class="btn-ai-analyze" id="btnAiPerson" onclick="triggerAiPerson('${escHtml(personName)}')">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> AI総合分析
+        </button>
       </div>
+      <div id="aiPersonResult"></div>
 
       <!-- 人物評価（カウンセラー視点） -->
       <div class="pp-block pp-grid-full blue-border" style="margin-bottom:20px;">
@@ -1236,6 +1313,76 @@ function setProgress(show, msg = '') {
   if (msg) document.getElementById('progressText').textContent = msg;
 }
 
+/* ══════════════════════════════════════════
+   AI分析ハンドラ
+══════════════════════════════════════════ */
+
+/* 各カードのAI分析ボタン */
+async function triggerAiCard(btn, recordId) {
+  const resultEl = document.getElementById(`ai-result-${recordId}`);
+  if (!resultEl) return;
+
+  // 1) allRecordsから取得を試みる
+  let record = allRecords.find(r => String(r.id) === String(recordId))
+             || allRecords[parseInt(recordId, 10)];
+
+  // 2) allRecordsが空でも data-record 属性からrecordを復元できる
+  if (!record) {
+    const card = btn.closest('.tc-card');
+    const encoded = card?.dataset?.record;
+    if (encoded) {
+      try { record = JSON.parse(decodeURIComponent(encoded)); } catch {}
+    }
+  }
+
+  if (!record) {
+    resultEl.innerHTML = '<div class="ai-error">レコードが見つかりません（ページを再読み込みしてください）</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  resultEl.innerHTML = '<div class="ai-loading"><i class="fa-solid fa-spinner fa-spin"></i> Gemini が分析中... (数秒かかります)</div>';
+
+  try {
+    const result = await aiAnalyzeRecord(record);
+    resultEl.innerHTML = renderAiResult(result);
+    btn.style.display = 'none'; // 実行後は非表示
+  } catch (err) {
+    const msg = err.message.includes('429') || err.message.includes('quota')
+      ? '⚠️ 本日の無料枠(20回)を使い切りました。明日またお試しください。'
+      : `エラー: ${err.message}`;
+    resultEl.innerHTML = `<div class="ai-error">${msg}</div>`;
+    btn.disabled = false;
+  }
+}
+
+/* 個人プロファイルのAI総合分析ボタン */
+async function triggerAiPerson(personName) {
+  const resultEl = document.getElementById('aiPersonResult') || document.getElementById('aiPersonResult1');
+  const btn = document.getElementById('btnAiPerson') || document.getElementById('btnAiPerson1');
+  if (!resultEl) return;
+  if (!personMap[personName] || personMap[personName].length === 0) {
+    resultEl.innerHTML = '<div class="ai-error">データが読み込まれていません。Excelをアップロードして分析を実行してください。</div>';
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  resultEl.innerHTML = '<div class="ai-loading"><i class="fa-solid fa-spinner fa-spin"></i> Gemini が総合分析中... (10秒ほどかかります)</div>';
+
+  try {
+    const records = personMap[personName];
+    const result = await aiAnalyzePerson(records, personName);
+    resultEl.innerHTML = renderAiPersonResult(result);
+    if (btn) btn.style.display = 'none';
+  } catch (err) {
+    const msg = err.message.includes('429') || err.message.includes('quota')
+      ? '⚠️ 本日の無料枠(20回)を使い切りました。明日またお試しください。'
+      : `エラー: ${err.message}`;
+    resultEl.innerHTML = `<div class="ai-error">${msg}</div>`;
+    if (btn) btn.disabled = false;
+  }
+}
+
 /* ── 初期ロード ── */
 window.addEventListener('DOMContentLoaded', async () => {
   allRecords = await loadMeetingRecords();
@@ -1243,7 +1390,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     buildPersonMap(allRecords);
     renderPersonTabs();
     renderCurrentPerson();
-    document.getElementById('btnClearAll').style.display = 'inline-flex';
     document.getElementById('btnTogglePdfPanel').style.display = 'inline-flex';
   }
 });
