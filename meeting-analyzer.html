@@ -473,14 +473,11 @@
     </div>
   </div>
   <div class="page-actions">
-    <button class="btn btn-sm btn-blue" id="btnLoadSaved">
-      <i class="fa-solid fa-database"></i> 保存データ読込
-    </button>
     <button class="btn btn-sm" id="btnTogglePdfPanel" style="display:none;border-color:var(--c-gold);color:var(--c-gold);background:rgba(204,136,0,0.06);">
       <i class="fa-solid fa-file-pdf"></i> PDF出力
     </button>
-    <button class="btn btn-sm btn-red" id="btnClearAll" style="display:none;">
-      <i class="fa-solid fa-trash"></i> 全削除
+    <button class="btn btn-sm btn-red" id="btnClearAll">
+      <i class="fa-solid fa-trash"></i> データ全消去
     </button>
   </div>
 </div>
@@ -767,7 +764,6 @@ async function runAnalysis() {
     buildPersonMap(allRecords);
     renderPersonTabs();
     renderCurrentPerson();
-    document.getElementById('btnClearAll').style.display = 'inline-flex';
     document.getElementById('btnTogglePdfPanel').style.display = 'inline-flex';
 
     // AI分析を自動実行（バックグラウンドで全件処理）
@@ -831,7 +827,6 @@ document.getElementById('btnLoadSaved').addEventListener('click', async () => {
     buildPersonMap(allRecords);
     renderPersonTabs();
     renderCurrentPerson();
-    document.getElementById('btnClearAll').style.display = 'inline-flex';
     document.getElementById('btnTogglePdfPanel').style.display = 'inline-flex';
 
     // 既存データが空かチェック
@@ -853,7 +848,7 @@ document.getElementById('btnClearAll').addEventListener('click', async () => {
   allRecords = []; personMap = {}; storeMap = {}; activePerson = null; activeStore = null;
   setProgress(false);
   renderEmpty();
-  document.getElementById('btnClearAll').style.display = 'none';
+
   document.getElementById('btnTogglePdfPanel').style.display = 'none';
   document.getElementById('pdfDownloadPanel').classList.remove('active');
   showToast('全データを削除しました。', 'warn');
@@ -1392,7 +1387,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     buildPersonMap(allRecords);
     renderPersonTabs();
     renderCurrentPerson();
-    document.getElementById('btnClearAll').style.display = 'inline-flex';
     document.getElementById('btnTogglePdfPanel').style.display = 'inline-flex';
   }
 });
