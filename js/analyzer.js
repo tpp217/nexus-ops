@@ -1103,6 +1103,12 @@ function renderTimelineCard(record, index) {
       <div class="tc-tab-panel" data-panel="ai">
         <div id="ai-panel-${record.id || index}" class="ai-card-panel">
           ${hasAiData ? renderAiResult({
+            ai_review: aiReview,
+            ai_status: aiStatus,
+            ai_actions_decided: aiActionsDecided,
+            ai_actions_pending: aiActionsPending,
+            ai_actions_planned: aiActionsPlanned,
+            // 後方互換
             ai_summary: aiSummary,
             ai_strengths: aiStrengths,
             ai_challenges: aiChallenges,
@@ -1112,14 +1118,14 @@ function renderTimelineCard(record, index) {
           }) : `
           <div style="padding:8px 0;">
             <button class="btn-ai-analyze" onclick="triggerAiCard(this, '${record.id || index}')">
-              <i class="fa-solid fa-wand-magic-sparkles"></i> AI分析を実行（Genspark）
+              <i class="fa-solid fa-wand-magic-sparkles"></i> AI総評を生成（Genspark）
             </button>
           </div>`}
           <div id="ai-result-${record.id || index}"></div>
           ${hasAiData ? `
           <div style="margin-top:8px; text-align:right;">
             <button class="btn-ai-analyze" style="font-size:0.65rem;opacity:0.6;" onclick="triggerAiCard(this, '${record.id || index}')">
-              <i class="fa-solid fa-rotate-right"></i> 再分析
+              <i class="fa-solid fa-rotate-right"></i> 再生成
             </button>
           </div>` : ''}
         </div>
@@ -1190,45 +1196,67 @@ async function aiAnalyzePerson(records, personName) {
   return resp.json();
 }
 
-/* ─── AI結果HTMLレンダリング（単票） ─── */
+/* ─── AI総評レンダリング（単票） ─── */
 function renderAiResult(result) {
   if (!result) return '';
+
+  const statusColor = {
+    '進行中': 'var(--c-green)',
+    '停滞中': 'var(--c-red)',
+    '予定':   'var(--c-gold)'
+  }[result.ai_status] || 'var(--c-blue)';
+
+  const actionItems = (arr, icon, color) => Array.isArray(arr) && arr.length
+    ? arr.map(s => `<div class="al-item" style="border-left-color:${color}"><i class="fa-solid fa-${icon}" style="color:${color}"></i><span>${escHtml(s)}</span></div>`).join('')
+    : '';
+
+  // 新形式（総評）
+  if (result.ai_review) {
+    return `
+    <div class="ai-result-block">
+      <div class="ai-result-header">
+        <i class="fa-solid fa-wand-magic-sparkles"></i> AI 総評
+        ${result.ai_status ? `<span style="margin-left:auto;font-size:0.7rem;font-weight:700;color:${statusColor};border:1px solid ${statusColor};padding:2px 8px;border-radius:4px;">${escHtml(result.ai_status)}</span>` : ''}
+      </div>
+
+      <div class="tc-section">
+        <div class="ai-review-text">${escHtml(result.ai_review).replace(/
+/g, '<br>')}</div>
+      </div>
+
+      ${(result.ai_actions_decided?.length || result.ai_actions_pending?.length || result.ai_actions_planned?.length) ? `
+      <div class="tc-section" style="margin-top:14px;">
+        <div class="section-title gold"><i class="fa-solid fa-list-check"></i> アクション整理</div>
+        ${result.ai_actions_decided?.length ? `
+        <div style="margin-bottom:8px;">
+          <div style="font-size:0.68rem;font-weight:700;color:var(--c-green);margin-bottom:4px;letter-spacing:.04em;">✅ 決定事項</div>
+          <div class="analysis-list">${actionItems(result.ai_actions_decided, 'circle-check', 'var(--c-green)')}</div>
+        </div>` : ''}
+        ${result.ai_actions_pending?.length ? `
+        <div style="margin-bottom:8px;">
+          <div style="font-size:0.68rem;font-weight:700;color:var(--c-gold);margin-bottom:4px;letter-spacing:.04em;">⏸ 保留事項</div>
+          <div class="analysis-list">${actionItems(result.ai_actions_pending, 'clock', 'var(--c-gold)')}</div>
+        </div>` : ''}
+        ${result.ai_actions_planned?.length ? `
+        <div>
+          <div style="font-size:0.68rem;font-weight:700;color:var(--c-blue);margin-bottom:4px;letter-spacing:.04em;">📅 予定事項</div>
+          <div class="analysis-list">${actionItems(result.ai_actions_planned, 'calendar-days', 'var(--c-blue)')}</div>
+        </div>` : ''}
+      </div>` : ''}
+    </div>`;
+  }
+
+  // 旧形式フォールバック（後方互換）
   const items = (arr) => Array.isArray(arr)
     ? arr.map(s => `<div class="al-item al-blue"><i class="fa-solid fa-robot"></i><span>${escHtml(s)}</span></div>`).join('')
     : '';
   return `
   <div class="ai-result-block">
-    <div class="ai-result-header"><i class="fa-solid fa-wand-magic-sparkles"></i> Gemini AI 分析</div>
-    ${result.ai_summary ? `
-    <div class="tc-section">
-      <div class="section-title" style="color:var(--c-blue)"><i class="fa-solid fa-comment-dots"></i> AI サマリー</div>
-      <div class="prose-item prose-blue">${escHtml(result.ai_summary)}</div>
-    </div>` : ''}
-    ${result.ai_person_profile ? `
-    <div class="tc-section">
-      <div class="section-title" style="color:var(--c-blue)"><i class="fa-solid fa-fingerprint"></i> AI プロファイル</div>
-      <div class="prose-item prose-blue">${escHtml(result.ai_person_profile)}</div>
-    </div>` : ''}
-    ${result.ai_strengths?.length ? `
-    <div class="tc-section">
-      <div class="section-title green"><i class="fa-solid fa-arrow-trend-up"></i> AI が見た強み</div>
-      <div class="analysis-list">${items(result.ai_strengths)}</div>
-    </div>` : ''}
-    ${result.ai_challenges?.length ? `
-    <div class="tc-section">
-      <div class="section-title red"><i class="fa-solid fa-circle-exclamation"></i> AI が見た課題</div>
-      <div class="analysis-list">${items(result.ai_challenges)}</div>
-    </div>` : ''}
-    ${result.ai_concerns?.length ? `
-    <div class="tc-section">
-      <div class="section-title red"><i class="fa-solid fa-shield-exclamation"></i> AI 懸念事項</div>
-      <div class="analysis-list">${items(result.ai_concerns)}</div>
-    </div>` : ''}
-    ${result.ai_next_actions?.length ? `
-    <div class="tc-section">
-      <div class="section-title gold"><i class="fa-solid fa-list-check"></i> AI 推奨アクション</div>
-      <div class="analysis-list">${items(result.ai_next_actions)}</div>
-    </div>` : ''}
+    <div class="ai-result-header"><i class="fa-solid fa-wand-magic-sparkles"></i> AI 分析</div>
+    ${result.ai_summary ? `<div class="tc-section"><div class="prose-item prose-blue">${escHtml(result.ai_summary)}</div></div>` : ''}
+    ${result.ai_strengths?.length ? `<div class="tc-section"><div class="section-title green"><i class="fa-solid fa-arrow-trend-up"></i> 強み</div><div class="analysis-list">${items(result.ai_strengths)}</div></div>` : ''}
+    ${result.ai_challenges?.length ? `<div class="tc-section"><div class="section-title red"><i class="fa-solid fa-circle-exclamation"></i> 課題</div><div class="analysis-list">${items(result.ai_challenges)}</div></div>` : ''}
+    ${result.ai_next_actions?.length ? `<div class="tc-section"><div class="section-title gold"><i class="fa-solid fa-list-check"></i> アクション</div><div class="analysis-list">${items(result.ai_next_actions)}</div></div>` : ''}
   </div>`;
 }
 

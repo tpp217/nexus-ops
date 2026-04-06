@@ -58,7 +58,7 @@ db.exec(`
 `);
 
 // 既存DBへのマイグレーション（カラムがなければ追加）
-['ai_summary','ai_strengths','ai_challenges','ai_concerns','ai_next_actions','ai_person_profile'].forEach(col => {
+['ai_summary','ai_strengths','ai_challenges','ai_concerns','ai_next_actions','ai_person_profile','ai_review','ai_status','ai_actions_decided','ai_actions_pending','ai_actions_planned'].forEach(col => {
   try { db.exec(`ALTER TABLE meeting_records ADD COLUMN ${col} TEXT DEFAULT ''`); } catch {}
 });
 
@@ -142,25 +142,31 @@ function gskAnalyze(instructions, taskName, timeout) {
   return JSON.parse(jsonMatch[0]);
 }
 
-// 単票分析
+// 単票分析（総評形式）
 app.post('/api/analyze', (req, res) => {
   const { content_main, tasks_given, personal_issues, evaluation, target, sheet_name } = req.body;
   const allText = [content_main, tasks_given, personal_issues, evaluation].filter(Boolean).join('\n');
   if (!allText.trim()) return res.status(400).json({ error: 'テキストが空です' });
 
   const instructions =
-    `面談対象：${target || '不明'}。シート名：${sheet_name || '不明'}。\n` +
-    `面談記録：\n${allText.substring(0, 2000)}\n\n` +
-    `以下のJSON形式のみで返してください（説明文不要）:\n` +
-    `{"ai_summary":"この面談全体の3〜5行の要約（カウンセラー視点）",` +
-    `"ai_strengths":["強みや良い点（最大5件）"],` +
-    `"ai_challenges":["課題・改善点（最大5件）"],` +
-    `"ai_concerns":["懸念事項（最大3件）"],` +
-    `"ai_next_actions":["上司として取るべきアクション（最大5件）"],` +
-    `"ai_person_profile":"この人物の特徴・傾向を3〜5行でプロファイリング"}`;
+    `あなたは人材育成の専門家です。以下の1on1面談記録を読み、総評をJSON形式で返してください。\n` +
+    `面談対象：${target || '不明'}。期間：${sheet_name || '不明'}。\n\n` +
+    `【面談記録】\n${allText.substring(0, 2000)}\n\n` +
+    `以下の観点を必ず含めた総評文を作成してください：\n` +
+    `・課題（何が問題か、どの程度深刻か）\n` +
+    `・状態（進行中／停滞中／予定段階のどれか）\n` +
+    `・感情・モチベーション（本人の状態や気持ちの読み取り）\n` +
+    `・原因と結果（なぜその状態になっているか、何をもたらしているか）\n` +
+    `・アクション（決定事項／保留事項／予定に分けて）\n\n` +
+    `以下のJSON形式のみで返してください（説明文・前置き不要）:\n` +
+    `{"ai_review":"この面談の総評を600〜800字程度の流れのある文章で。上記の観点をすべて自然に織り込むこと。箇条書き禁止。",` +
+    `"ai_status":"進行中／停滞中／予定のいずれか一言",` +
+    `"ai_actions_decided":["決定したアクション（最大5件）"],` +
+    `"ai_actions_pending":["保留・検討中の事項（最大3件）"],` +
+    `"ai_actions_planned":["今後予定している事項（最大3件）"]}`;
 
   try {
-    const result = gskAnalyze(instructions, '面談分析', 120000);
+    const result = gskAnalyze(instructions, '面談総評', 120000);
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error('gsk analyze error:', err.message);
