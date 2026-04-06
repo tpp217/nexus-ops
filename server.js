@@ -171,6 +171,40 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/analyze/person
+ * 個人全体AI分析（複数レコードをまとめて総評）
+ */
+app.post('/api/analyze/person', async (req, res) => {
+  const { records, target } = req.body;
+  if (!records || !Array.isArray(records) || records.length === 0) {
+    return res.status(400).json({ error: 'レコードが空です' });
+  }
+
+  const summaries = records.map((r, i) => {
+    const text = [r.content_main, r.tasks_given, r.personal_issues, r.evaluation].filter(Boolean).join(' ');
+    return `【${i+1}回目 ${r.sheet_name || ''}】${text.substring(0, 500)}`;
+  }).join('\n\n');
+
+  const instructions =
+    `あなたは人材育成の専門家です。以下は${target || '対象者'}の${records.length}回分の1on1面談記録です。全体を俯瞰した総合評価をJSON形式で返してください。\n\n` +
+    `【面談記録（全${records.length}回分）】\n${summaries.substring(0, 3000)}\n\n` +
+    `以下のJSON形式のみで返してください（説明文・前置き不要）:\n` +
+    `{"ai_review":"全体を通じた総合評価を800〜1000字程度の流れのある文章で。成長の軌跡、継続課題、改善傾向、今後の展望を自然に織り込むこと。箇条書き禁止。",` +
+    `"ai_status":"進行中／停滞中／予定のいずれか一言",` +
+    `"ai_actions_decided":["全体を通じて決定・実行されたこと（最大5件）"],` +
+    `"ai_actions_pending":["継続して保留・検討中の事項（最大3件）"],` +
+    `"ai_actions_planned":["今後取り組むべき事項（最大3件）"]}`;
+
+  try {
+    const result = await gskAnalyzeAsync(instructions, `${target || '個人'}全体総評`, 180000);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('gsk analyze/person error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`✅ NEXUS OPS Server :${PORT}`);
   console.log(`   Static: ${__dirname}`);
