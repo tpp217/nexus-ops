@@ -625,8 +625,7 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
-<script src="js/analyzer.js?v=1775485168"></script>
-<script src="js/pdf-export.js?v=1775485168"></script>
+
 <script>
 /* ============================================================
    Controller – meeting-analyzer.html v3.0
@@ -1377,8 +1376,12 @@ async function triggerAiPerson(personName) {
   }
 }
 
-/* ── 初期ロード ── */
-window.addEventListener('DOMContentLoaded', async () => {
+</script>
+<script src="js/analyzer.js?v=2"></script>
+<script src="js/pdf-export.js?v=2"></script>
+<script>
+/* ── 初期ロード（analyzer.js 読込後に実行） ── */
+(async () => {
   allRecords = await loadMeetingRecords();
   if (allRecords.length) {
     buildPersonMap(allRecords);
@@ -1386,7 +1389,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     renderCurrentPerson();
     document.getElementById('btnTogglePdfPanel').style.display = 'inline-flex';
   }
-});
+})();
 </script>
 <script src="https://www.genspark.ai/sandbox_inspect.js"></script></body>
 </html>
