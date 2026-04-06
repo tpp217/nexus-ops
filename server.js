@@ -2,14 +2,14 @@
  * NEXUS OPS - All-in-One サーバー
  * - 静的ファイル配信 (HTML/CSS/JS)
  * - tables/ REST API (tpp-api → Turso)
- * - /api/analyze, /api/analyze/person (gsk super_agent)
+ * - /api/analyze (gsk super_agent, 非同期並列対応)
  * PORT: 3100
  */
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app  = express();
@@ -56,7 +56,6 @@ async function tppDelete(collection, id) {
 
 // ── tables/ REST API (tpp-api proxy) ─────────────
 
-// GET /tables/meeting_records
 app.get('/tables/meeting_records', async (req, res) => {
   try {
     const rows = await tppGet('meeting_records');
@@ -64,7 +63,6 @@ app.get('/tables/meeting_records', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /tables/meeting_records/:id
 app.get('/tables/meeting_records/:id', async (req, res) => {
   try {
     const rows = await tppGet('meeting_records');
@@ -74,7 +72,6 @@ app.get('/tables/meeting_records/:id', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /tables/meeting_records
 app.post('/tables/meeting_records', async (req, res) => {
   try {
     const r = req.body;
@@ -82,13 +79,11 @@ app.post('/tables/meeting_records', async (req, res) => {
     const existing = rows.find(x => x.sheet_name === r.sheet_name && x.source_file === r.source_file);
     if (existing) {
       await tppPost('meeting_records', { ...r, id: existing.id });
-      // 更新後に最新レコードをGETして返す
       const updated = await tppGet('meeting_records');
       const saved = updated.find(x => x.id === existing.id);
       res.json(saved || { ...r, id: existing.id });
     } else {
       await tppPost('meeting_records', r);
-      // 追加後に最新レコードをGETして返す（最後に追加されたもの）
       const updated = await tppGet('meeting_records');
       const saved = updated.find(x => x.sheet_name === r.sheet_name && x.source_file === r.source_file)
                  || updated[updated.length - 1];
@@ -97,19 +92,16 @@ app.post('/tables/meeting_records', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// PUT /tables/meeting_records/:id
 app.put('/tables/meeting_records/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await tppPost('meeting_records', { ...req.body, id });
-    // 更新後に最新レコードをGETして返す
     const rows = await tppGet('meeting_records');
     const updated = rows.find(x => x.id === id);
     res.json(updated || req.body);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /tables/meeting_records/:id
 app.delete('/tables/meeting_records/:id', async (req, res) => {
   try {
     await tppDelete('meeting_records', req.params.id);
@@ -122,19 +114,33 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', engine: 'gsk-super-agent', db: 'turso via tpp-api' });
 });
 
-// ── AI分析（gsk super_agent） ─────────────────────
+// ── AI分析（gsk super_agent, 非同期） ────────────
 
-function gskAnalyze(instructions, taskName, timeout) {
-  const escaped = instructions.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
-  const cmd = `gsk task super_agent --task_name "${taskName}" --query "以下をJSONで分析してください" --instructions '${escaped}' --output text 2>&1`;
-  const output = execSync(cmd, { timeout: timeout || 120000, encoding: 'utf8' });
-  const jsonMatch = output.match(/\{[\s\S]*?"ai_[a-z_]+"[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('AI応答の解析失敗: ' + output.substring(0, 300));
-  return JSON.parse(jsonMatch[0]);
+/**
+ * gsk を非同期で実行してJSONを返すPromise
+ */
+function gskAnalyzeAsync(instructions, taskName, timeoutMs = 120000) {
+  return new Promise((resolve, reject) => {
+    const escaped = instructions.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+    const cmd = `gsk task super_agent --task_name "${taskName}" --query "以下をJSONで分析してください" --instructions '${escaped}' --output text 2>&1`;
+    exec(cmd, { timeout: timeoutMs }, (err, stdout) => {
+      if (err) return reject(new Error(err.message));
+      const jsonMatch = stdout.match(/\{[\s\S]*?"ai_[a-z_]+"[\s\S]*\}/);
+      if (!jsonMatch) return reject(new Error('AI応答の解析失敗: ' + stdout.substring(0, 300)));
+      try {
+        resolve(JSON.parse(jsonMatch[0]));
+      } catch(e) {
+        reject(new Error('JSONパース失敗: ' + e.message));
+      }
+    });
+  });
 }
 
-// 単票分析（総評形式）
-app.post('/api/analyze', (req, res) => {
+/**
+ * POST /api/analyze
+ * 単票分析（総評形式）— 非同期、並列処理可能
+ */
+app.post('/api/analyze', async (req, res) => {
   const { content_main, tasks_given, personal_issues, evaluation, target, sheet_name } = req.body;
   const allText = [content_main, tasks_given, personal_issues, evaluation].filter(Boolean).join('\n');
   if (!allText.trim()) return res.status(400).json({ error: 'テキストが空です' });
@@ -157,41 +163,10 @@ app.post('/api/analyze', (req, res) => {
     `"ai_actions_planned":["今後予定している事項（最大3件）"]}`;
 
   try {
-    const result = gskAnalyze(instructions, '面談総評', 120000);
+    const result = await gskAnalyzeAsync(instructions, '面談総評');
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error('gsk analyze error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 個人全体分析
-app.post('/api/analyze/person', (req, res) => {
-  const { records, target } = req.body;
-  if (!records?.length) return res.status(400).json({ error: 'レコードが空です' });
-
-  const history = records.map(r => {
-    const c = [r.content_main, r.tasks_given, r.personal_issues, r.evaluation]
-      .filter(Boolean).join(' ').substring(0, 300);
-    return `【${r.year_month || r.sheet_name}】${c}`;
-  }).join('\n\n');
-
-  const instructions =
-    `対象者：${target || '不明'} の複数回にわたる面談記録の時系列データです。\n` +
-    `${history.substring(0, 3000)}\n\n` +
-    `以下のJSON形式のみで返してください（説明文不要）:\n` +
-    `{"ai_overall_summary":"全体を通じた5〜7行の総合評価（変化・成長・継続課題含む）",` +
-    `"ai_growth_track":["時系列で見た成長・変化のポイント（最大5件）"],` +
-    `"ai_persistent_strengths":["一貫して見られる強み（最大5件）"],` +
-    `"ai_persistent_challenges":["改善しきれていない継続課題（最大5件）"],` +
-    `"ai_future_direction":["今後の育成・対処方針（最大5件）"],` +
-    `"ai_risk_assessment":"現状リスクと機会の評価（2〜3行）"}`;
-
-  try {
-    const result = gskAnalyze(instructions, '個人総合分析', 180000);
-    res.json({ ok: true, ...result });
-  } catch (err) {
-    console.error('gsk person error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -200,5 +175,5 @@ app.listen(PORT, '127.0.0.1', () => {
   console.log(`✅ NEXUS OPS Server :${PORT}`);
   console.log(`   Static: ${__dirname}`);
   console.log(`   DB: Turso (via tpp-api :3001)`);
-  console.log(`   Engine: gsk super_agent`);
+  console.log(`   Engine: gsk super_agent (async/parallel)`);
 });

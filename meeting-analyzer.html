@@ -788,38 +788,42 @@ async function runAnalysis() {
 
 /* ── 全レコードのAI分析を順次実行してDBを更新 ── */
 async function runAiAnalysisForAll(records) {
-  for (const record of records) {
+  setProgress(true, `AI分析中... 0/${records.length}`);
+  let done = 0;
+
+  await Promise.all(records.map(async (record) => {
     try {
-      setProgress(true, `AI分析中: ${record.target || record.sheet_name} (${records.indexOf(record)+1}/${records.length})`);
       const result = await aiAnalyzeRecord(record);
       if (result.ok) {
-        // AI結果をDBに保存（PUT）
         const id = record.id;
         if (id) {
           await fetch(`tables/meeting_records/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              ai_review:           result.ai_review           || '',
-              ai_status:           result.ai_status           || '',
-              ai_actions_decided:  JSON.stringify(result.ai_actions_decided  || []),
-              ai_actions_pending:  JSON.stringify(result.ai_actions_pending  || []),
-              ai_actions_planned:  JSON.stringify(result.ai_actions_planned  || []),
-              // 旧フィールドもクリア
-              ai_summary:         '',
-              ai_strengths:       '[]',
-              ai_challenges:      '[]',
-              ai_concerns:        '[]',
-              ai_next_actions:    '[]',
-              ai_person_profile:  ''
+              ai_review:          result.ai_review          || '',
+              ai_status:          result.ai_status          || '',
+              ai_actions_decided: JSON.stringify(result.ai_actions_decided  || []),
+              ai_actions_pending: JSON.stringify(result.ai_actions_pending  || []),
+              ai_actions_planned: JSON.stringify(result.ai_actions_planned  || [])
             })
           });
+          // 完了したレコードをallRecordsに反映して即時表示更新
+          const idx = allRecords.findIndex(r => String(r.id) === String(id));
+          if (idx >= 0) {
+            allRecords[idx] = { ...allRecords[idx], ...result };
+            buildPersonMap(allRecords);
+            renderPersonTabs();
+            renderCurrentPerson();
+          }
         }
       }
     } catch(e) {
       console.warn('AI analyze error for record', record.id, e.message);
     }
-  }
+    done++;
+    setProgress(true, `AI分析中... ${done}/${records.length}`);
+  }));
 }
 
 document.getElementById('btnLoadSaved').addEventListener('click', async () => {
