@@ -927,6 +927,20 @@ function renderTimelineCard(record, index) {
   // 年月バッジ: year_month があればそれを優先、なければ sheet_name
   const ymLabel = record.year_month || record.sheet_name || '--';
 
+  // AI分析フィールド
+  const aiReview          = record.ai_review || '';
+  const aiStatus          = record.ai_status || '';
+  const aiActionsDecided  = tryParse(record.ai_actions_decided, []);
+  const aiActionsPending  = tryParse(record.ai_actions_pending, []);
+  const aiActionsPlanned  = tryParse(record.ai_actions_planned, []);
+  const aiSummary         = record.ai_summary || '';
+  const aiStrengths       = tryParse(record.ai_strengths, []);
+  const aiChallenges      = tryParse(record.ai_challenges, []);
+  const aiConcerns        = tryParse(record.ai_concerns, []);
+  const aiNextActions     = tryParse(record.ai_next_actions, []);
+  const aiProfile         = record.ai_person_profile || '';
+  const hasAiData         = !!(aiReview || aiSummary || aiStrengths.length);
+
   return `
   <div class="tc-card hud-panel ${colorName} anim-fade-in" style="animation-delay:${index * 0.05}s" data-id="${record.id || ''}" data-record="${encodeURIComponent(JSON.stringify({content_main:record.content_main||'',tasks_given:record.tasks_given||'',personal_issues:record.personal_issues||'',evaluation:record.evaluation||'',target:record.target||'',sheet_name:record.sheet_name||''}))}">
     <div class="tc-card-header">
