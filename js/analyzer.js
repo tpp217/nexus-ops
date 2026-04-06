@@ -1173,7 +1173,7 @@ function tryParse(v, fallback) {
    ★ AI分析エンジン（Gemini 2.5 Flash）
    VMバックエンド経由でGemini APIを呼び出す
 ══════════════════════════════════════════════════ */
-const AI_API_BASE = 'https://zvtfabus.gensparkclaw.com/nexus-api/api';
+const AI_API_BASE = 'https://zvtfabus.gensparkclaw.com/nexus/api';
 
 /* ─── 単票AI分析 ─── */
 async function aiAnalyzeRecord(record) {
