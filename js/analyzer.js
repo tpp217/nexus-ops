@@ -1290,41 +1290,45 @@ function renderAiResult(result) {
 /* ─── AI結果HTMLレンダリング（個人全体） ─── */
 function renderAiPersonResult(result) {
   if (!result) return '';
-  const items = (arr) => Array.isArray(arr)
-    ? arr.map(s => `<div class="al-item al-blue"><i class="fa-solid fa-robot"></i><span>${escHtml(s)}</span></div>`).join('')
+  const statusColor = {
+    '進行中': 'var(--c-green)',
+    '停滞中': 'var(--c-red)',
+    '予定':   'var(--c-gold)'
+  }[result.ai_status] || 'var(--c-blue)';
+
+  const actionItems = (arr, icon, color) => Array.isArray(arr) && arr.length
+    ? arr.map(s => `<div class="al-item" style="border-left-color:${color}"><i class="fa-solid fa-${icon}" style="color:${color}"></i><span>${escHtml(s)}</span></div>`).join('')
     : '';
+
   return `
   <div class="ai-result-block ai-person-block">
     <div class="ai-result-header"><i class="fa-solid fa-wand-magic-sparkles"></i> Gemini AI 総合評価</div>
-    ${result.ai_overall_summary ? `
+    ${result.ai_status ? `
+    <div class="tc-section">
+      <div class="al-item" style="border-left-color:${statusColor};margin-bottom:8px">
+        <i class="fa-solid fa-circle-dot" style="color:${statusColor}"></i>
+        <span style="font-weight:800;color:${statusColor}">全体ステータス：${escHtml(result.ai_status)}</span>
+      </div>
+    </div>` : ''}
+    ${result.ai_review ? `
     <div class="tc-section">
       <div class="section-title" style="color:var(--c-blue)"><i class="fa-solid fa-comment-dots"></i> 総合評価</div>
-      <div class="prose-item prose-blue">${escHtml(result.ai_overall_summary)}</div>
+      <div class="prose-item prose-blue" style="white-space:pre-wrap">${escHtml(result.ai_review)}</div>
     </div>` : ''}
-    ${result.ai_risk_assessment ? `
+    ${Array.isArray(result.ai_actions_decided) && result.ai_actions_decided.length ? `
     <div class="tc-section">
-      <div class="section-title red"><i class="fa-solid fa-radar"></i> リスク＆機会</div>
-      <div class="prose-item prose-blue">${escHtml(result.ai_risk_assessment)}</div>
+      <div class="section-title green"><i class="fa-solid fa-check-circle"></i> 決定アクション</div>
+      <div class="analysis-list">${actionItems(result.ai_actions_decided, 'check', 'var(--c-green)')}</div>
     </div>` : ''}
-    ${result.ai_persistent_strengths?.length ? `
+    ${Array.isArray(result.ai_actions_pending) && result.ai_actions_pending.length ? `
     <div class="tc-section">
-      <div class="section-title green"><i class="fa-solid fa-medal"></i> 一貫した強み</div>
-      <div class="analysis-list">${items(result.ai_persistent_strengths)}</div>
+      <div class="section-title" style="color:var(--c-gold)"><i class="fa-solid fa-hourglass-half"></i> 保留中</div>
+      <div class="analysis-list">${actionItems(result.ai_actions_pending, 'clock', 'var(--c-gold)')}</div>
     </div>` : ''}
-    ${result.ai_persistent_challenges?.length ? `
+    ${Array.isArray(result.ai_actions_planned) && result.ai_actions_planned.length ? `
     <div class="tc-section">
-      <div class="section-title red"><i class="fa-solid fa-repeat"></i> 継続課題</div>
-      <div class="analysis-list">${items(result.ai_persistent_challenges)}</div>
-    </div>` : ''}
-    ${result.ai_growth_track?.length ? `
-    <div class="tc-section">
-      <div class="section-title" style="color:var(--c-blue)"><i class="fa-solid fa-timeline"></i> 成長の軌跡</div>
-      <div class="analysis-list">${items(result.ai_growth_track)}</div>
-    </div>` : ''}
-    ${result.ai_future_direction?.length ? `
-    <div class="tc-section">
-      <div class="section-title gold"><i class="fa-solid fa-compass"></i> 育成方針（AI提案）</div>
-      <div class="analysis-list">${items(result.ai_future_direction)}</div>
+      <div class="section-title" style="color:var(--c-blue)"><i class="fa-solid fa-calendar-days"></i> 今後の予定</div>
+      <div class="analysis-list">${actionItems(result.ai_actions_planned, 'calendar', 'var(--c-blue)')}</div>
     </div>` : ''}
   </div>`;
 }
