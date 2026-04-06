@@ -928,7 +928,7 @@ function renderTimelineCard(record, index) {
   const ymLabel = record.year_month || record.sheet_name || '--';
 
   return `
-  <div class="tc-card hud-panel ${colorName} anim-fade-in" style="animation-delay:${index * 0.05}s" data-id="${record.id || ''}">
+  <div class="tc-card hud-panel ${colorName} anim-fade-in" style="animation-delay:${index * 0.05}s" data-id="${record.id || ''}" data-record="${encodeURIComponent(JSON.stringify({content_main:record.content_main||'',tasks_given:record.tasks_given||'',personal_issues:record.personal_issues||'',evaluation:record.evaluation||'',target:record.target||'',sheet_name:record.sheet_name||''}))}">
     <div class="tc-card-header">
       <div class="tc-header-left">
         <span class="tc-sheet-badge ${colorClass}">${escHtml(ymLabel)}</span>

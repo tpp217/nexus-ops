@@ -1266,9 +1266,23 @@ async function triggerAiCard(btn, recordId) {
   const resultEl = document.getElementById(`ai-result-${recordId}`);
   if (!resultEl) return;
 
-  // 対象レコードを取得
-  const record = allRecords.find(r => (r.id || allRecords.indexOf(r)) == recordId);
-  if (!record) { resultEl.innerHTML = '<div class="ai-error">レコードが見つかりません</div>'; return; }
+  // 1) allRecordsから取得を試みる
+  let record = allRecords.find(r => String(r.id) === String(recordId))
+             || allRecords[parseInt(recordId, 10)];
+
+  // 2) allRecordsが空でも data-record 属性からrecordを復元できる
+  if (!record) {
+    const card = btn.closest('.tc-card');
+    const encoded = card?.dataset?.record;
+    if (encoded) {
+      try { record = JSON.parse(decodeURIComponent(encoded)); } catch {}
+    }
+  }
+
+  if (!record) {
+    resultEl.innerHTML = '<div class="ai-error">レコードが見つかりません（ページを再読み込みしてください）</div>';
+    return;
+  }
 
   btn.disabled = true;
   resultEl.innerHTML = '<div class="ai-loading"><i class="fa-solid fa-spinner fa-spin"></i> Gemini が分析中... (数秒かかります)</div>';
@@ -1290,7 +1304,11 @@ async function triggerAiCard(btn, recordId) {
 async function triggerAiPerson(personName) {
   const resultEl = document.getElementById('aiPersonResult') || document.getElementById('aiPersonResult1');
   const btn = document.getElementById('btnAiPerson') || document.getElementById('btnAiPerson1');
-  if (!resultEl || !personMap[personName]) return;
+  if (!resultEl) return;
+  if (!personMap[personName] || personMap[personName].length === 0) {
+    resultEl.innerHTML = '<div class="ai-error">データが読み込まれていません。Excelをアップロードして分析を実行してください。</div>';
+    return;
+  }
 
   if (btn) btn.disabled = true;
   resultEl.innerHTML = '<div class="ai-loading"><i class="fa-solid fa-spinner fa-spin"></i> Gemini が総合分析中... (10秒ほどかかります)</div>';
