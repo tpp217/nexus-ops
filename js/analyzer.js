@@ -1220,8 +1220,7 @@ function renderAiResult(result) {
       </div>
 
       <div class="tc-section">
-        <div class="ai-review-text">${escHtml(result.ai_review).replace(/
-/g, '<br>')}</div>
+        <div class="ai-review-text">${escHtml(result.ai_review).replace(/\n/g, '<br>')}</div>
       </div>
 
       ${(result.ai_actions_decided?.length || result.ai_actions_pending?.length || result.ai_actions_planned?.length) ? `
