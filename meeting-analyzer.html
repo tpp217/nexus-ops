@@ -721,6 +721,9 @@ async function extractExcelFromZip(zipFile, listEl) {
   return results;
 }
 
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 function addFLI(c, cls, icon, text) {
   const d = document.createElement('div');
   d.className = `file-list-item ${cls}`;
