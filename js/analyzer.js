@@ -1177,37 +1177,51 @@ const AI_API_BASE = 'https://zvtfabus.gensparkclaw.com/nexus/api';
 
 /* ─── 単票AI分析 ─── */
 async function aiAnalyzeRecord(record) {
-  const resp = await fetch(`${AI_API_BASE}/analyze`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      content_main:    record.content_main    || '',
-      tasks_given:     record.tasks_given     || '',
-      personal_issues: record.personal_issues || '',
-      evaluation:      record.evaluation      || '',
-      target:          record.target          || '',
-      sheet_name:      record.sheet_name      || ''
-    })
-  });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
-    throw new Error(err.error || `HTTP ${resp.status}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120000); // 2分
+  try {
+    const resp = await fetch(`${AI_API_BASE}/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content_main:    record.content_main    || '',
+        tasks_given:     record.tasks_given     || '',
+        personal_issues: record.personal_issues || '',
+        evaluation:      record.evaluation      || '',
+        target:          record.target          || '',
+        sheet_name:      record.sheet_name      || ''
+      }),
+      signal: controller.signal
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+      throw new Error(err.error || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+  } finally {
+    clearTimeout(timer);
   }
-  return resp.json();
 }
 
 /* ─── 個人全体AI分析 ─── */
 async function aiAnalyzePerson(records, personName) {
-  const resp = await fetch(`${AI_API_BASE}/analyze/person`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ records, target: personName })
-  });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
-    throw new Error(err.error || `HTTP ${resp.status}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 180000); // 3分
+  try {
+    const resp = await fetch(`${AI_API_BASE}/analyze/person`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records, target: personName }),
+      signal: controller.signal
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+      throw new Error(err.error || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+  } finally {
+    clearTimeout(timer);
   }
-  return resp.json();
 }
 
 /* ─── AI総評レンダリング（単票） ─── */
