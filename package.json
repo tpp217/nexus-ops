@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/tpp217/nexus-ops#readme",
   "dependencies": {
+    "better-sqlite3": "^12.8.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "node-fetch": "^3.3.2"
