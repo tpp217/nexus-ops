@@ -762,23 +762,13 @@ async function runAnalysis() {
   }
 
   if (newRecords.length) {
-    showToast(`${newRecords.length}件を保存しました。AI分析を開始します...`, 'info');
+    showToast(`${newRecords.length}件を保存しました。「AI総合分析」ボタンでAI分析を実行できます。`, 'info');
     allRecords = await loadMeetingRecords();
     buildPersonMap(allRecords);
     renderPersonTabs();
     renderCurrentPerson();
     document.getElementById('btnTogglePdfPanel').style.display = 'inline-flex';
-
-    // AI分析を自動実行（バックグラウンドで全件処理）
-    setProgress(true, 'AI分析中... しばらくお待ちください');
-    await runAiAnalysisForAll(newRecords);
     setProgress(false);
-    // AI結果を反映して再描画
-    allRecords = await loadMeetingRecords();
-    buildPersonMap(allRecords);
-    renderPersonTabs();
-    renderCurrentPerson();
-    showToast('AI分析が完了しました！', 'success');
   } else {
     setProgress(false);
     showToast('議事録データが見つかりませんでした。', 'warn');
