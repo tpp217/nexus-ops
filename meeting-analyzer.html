@@ -994,7 +994,7 @@ function renderPersonProfile(personName, records) {
   const lastPeriod  = lastRecord?.sheet_name || '--';
   const periodLabel = records.length > 1 ? `${firstPeriod} → ${lastPeriod}` : firstPeriod;
 
-  if (!report) {
+  if (!report || records.length < 2) {
     // 1件のみ
     area.innerHTML = `
       <div class="person-profile-panel hud-panel blue anim-fade-in" style="margin-bottom:24px;">
