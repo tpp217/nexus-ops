@@ -1,7 +1,7 @@
 /**
  * NEXUS OPS - All-in-One サーバー
  * - 静的ファイル配信 (HTML/CSS/JS)
- * - tables/ REST API (tpp-api → Turso)
+ * - tables/ REST API (Supabase)
  * - /api/analyze (gsk super_agent, 非同期並列対応)
  * PORT: 3100
  */
@@ -10,6 +10,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
+import { createClient } from '@supabase/supabase-js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app  = express();
@@ -21,97 +22,66 @@ app.use(express.json({ limit: '2mb' }));
 // ── 静的ファイル配信 ─────────────────────────────
 app.use(express.static(__dirname));
 
-// ── tpp-api クライアント（Turso） ─────────────────
-const TPP_API_BASE = 'http://127.0.0.1:3001/api/teppei/nexus-ops';
-const TPP_API_KEY  = 'a0ea116d6d2e7825390a4ca9e808f6f174087e9abf2fd89bb2e26750c6db1b80';
+// ── Supabase クライアント ────────────────────────
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://urzflutzgcioqswzmpkz.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVyemZsdXR6Z2Npb3Fzd3ptcGt6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTc5MjgyMywiZXhwIjoyMDkxMzY4ODIzfQ.eE4YMAa0OtDptd8sQ2SXslpHQ58S3sLBKQ8NzdyazoA';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function tppGet(collection, query = {}) {
-  const params = new URLSearchParams(query).toString();
-  const url = `${TPP_API_BASE}/${collection}${params ? '?' + params : ''}`;
-  const res = await fetch(url, { headers: { 'X-Api-Key': TPP_API_KEY } });
-  if (!res.ok) throw new Error(`GET ${collection} failed: ${res.status}`);
-  const json = await res.json();
-  return json.data ?? [];
-}
-
-async function tppPost(collection, payload) {
-  const res = await fetch(`${TPP_API_BASE}/${collection}`, {
-    method: 'POST',
-    headers: { 'X-Api-Key': TPP_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) throw new Error(`POST ${collection} failed: ${res.status}`);
-  return res.json();
-}
-
-async function tppDelete(collection, id) {
-  const url = id ? `${TPP_API_BASE}/${collection}/${id}` : `${TPP_API_BASE}/${collection}`;
-  const res = await fetch(url, {
-    method: 'DELETE',
-    headers: { 'X-Api-Key': TPP_API_KEY }
-  });
-  if (!res.ok) throw new Error(`DELETE ${collection} failed: ${res.status}`);
-  return res.json();
-}
-
-// ── tables/ REST API (tpp-api proxy) ─────────────
+// ── tables/ REST API (Supabase) ─────────────────
 
 app.get('/tables/meeting_records', async (req, res) => {
   try {
-    const rows = await tppGet('meeting_records');
-    res.json({ data: rows, total: rows.length });
+    const { data, error } = await supabase.from('meeting_records').select('*');
+    if (error) throw error;
+    res.json({ data, total: data.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/tables/meeting_records/:id', async (req, res) => {
   try {
-    const rows = await tppGet('meeting_records');
-    const row = rows.find(r => String(r.id) === String(req.params.id));
-    if (!row) return res.status(404).json({ error: 'not found' });
-    res.json(row);
+    const { data, error } = await supabase.from('meeting_records').select('*').eq('id', req.params.id).single();
+    if (error) return res.status(404).json({ error: 'not found' });
+    res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/tables/meeting_records', async (req, res) => {
   try {
     const r = req.body;
-    const rows = await tppGet('meeting_records');
-    const existing = rows.find(x => x.sheet_name === r.sheet_name && x.source_file === r.source_file);
-    if (existing) {
-      await tppPost('meeting_records', { ...r, id: existing.id });
-      const updated = await tppGet('meeting_records');
-      const saved = updated.find(x => x.id === existing.id);
-      res.json(saved || { ...r, id: existing.id });
-    } else {
-      await tppPost('meeting_records', r);
-      const updated = await tppGet('meeting_records');
-      const saved = updated.find(x => x.sheet_name === r.sheet_name && x.source_file === r.source_file)
-                 || updated[updated.length - 1];
-      res.json(saved || r);
-    }
+    const { data, error } = await supabase
+      .from('meeting_records')
+      .upsert(r, { onConflict: 'sheet_name,source_file' })
+      .select()
+      .single();
+    if (error) throw error;
+    res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/tables/meeting_records/:id', async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    await tppPost('meeting_records', { ...req.body, id });
-    const rows = await tppGet('meeting_records');
-    const updated = rows.find(x => x.id === id);
-    res.json(updated || req.body);
+    const { data, error } = await supabase
+      .from('meeting_records')
+      .update(req.body)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    if (error) throw error;
+    res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.delete('/tables/meeting_records/:id', async (req, res) => {
   try {
-    await tppDelete('meeting_records', req.params.id);
+    const { error } = await supabase.from('meeting_records').delete().eq('id', req.params.id);
+    if (error) throw error;
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── ヘルスチェック ────────────────────────────────
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', engine: 'gsk-super-agent', db: 'turso via tpp-api' });
+  res.json({ status: 'ok', engine: 'gsk-super-agent', db: 'supabase' });
 });
 
 // ── AI分析（gsk super_agent, 非同期） ────────────
@@ -208,6 +178,6 @@ app.post('/api/analyze/person', async (req, res) => {
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`✅ NEXUS OPS Server :${PORT}`);
   console.log(`   Static: ${__dirname}`);
-  console.log(`   DB: Turso (via tpp-api :3001)`);
+  console.log(`   DB: Supabase`);
   console.log(`   Engine: gsk super_agent (async/parallel)`);
 });
