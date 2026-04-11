@@ -23,8 +23,13 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.static(__dirname));
 
 // ── Supabase クライアント ────────────────────────
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://urzflutzgcioqswzmpkz.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVyemZsdXR6Z2Npb3Fzd3ptcGt6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTc5MjgyMywiZXhwIjoyMDkxMzY4ODIzfQ.eE4YMAa0OtDptd8sQ2SXslpHQ58S3sLBKQ8NzdyazoA';
+// 環境変数 SUPABASE_URL / SUPABASE_SERVICE_KEY を .env で設定すること
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('❌ SUPABASE_URL / SUPABASE_SERVICE_KEY が未設定です。.env を確認してください。');
+  process.exit(1);
+}
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── tables/ REST API (Supabase) ─────────────────
