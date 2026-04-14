@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "doppler run -- node server.js"
+    "start": "doppler run -p nexus-ops -c dev -- node server.js",
+    "start:prod": "doppler run -p nexus-ops -c prd -- node server.js",
+    "dev": "doppler run -p nexus-ops -c dev -- node --watch server.js"
   },
   "repository": {
     "type": "git",

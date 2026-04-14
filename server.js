@@ -1,38 +1,55 @@
 /**
- * NEXUS OPS - All-in-One サーバー
- * - 静的ファイル配信 (HTML/CSS/JS)
- * - tables/ REST API (Supabase)
- * - /api/analyze (gsk super_agent, 非同期並列対応)
+ * NEXUS OPS - VM AIサーバー
+ * 役割: gsk依存のAI分析APIのみを担当（Vercelで動かせない処理）
+ *
+ * エンドポイント:
+ *   GET  /api/health          ヘルスチェック
+ *   POST /api/analyze         単票AI分析
+ *   POST /api/analyze/person  個人全体AI分析
+ *
+ * ※ 静的ファイルと /tables/* はVercel側で配信する
  * PORT: 3100
+ * 起動: doppler run -- node server.js
  */
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { createClient } from '@supabase/supabase-js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app  = express();
-const PORT = 3100;
+const PORT = process.env.PORT || 3100;
 
-app.use(cors());
+// CORSはVercelドメインとローカル開発を許可
+const ALLOWED_ORIGINS = [
+  'https://zvtfabus.gensparkclaw.com',
+  'http://localhost:3000',
+  'http://localhost:3100',
+  /\.vercel\.app$/,
+];
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // 同一オリジン / postmanなど
+    const ok = ALLOWED_ORIGINS.some(p =>
+      typeof p === 'string' ? p === origin : p.test(origin)
+    );
+    cb(ok ? null : new Error('CORS: 許可されていないオリジン'), ok);
+  },
+}));
 app.use(express.json({ limit: '2mb' }));
 
-// ── 静的ファイル配信 ─────────────────────────────
-app.use(express.static(__dirname));
-
 // ── Supabase クライアント ────────────────────────
-// 環境変数 SUPABASE_URL / SUPABASE_SERVICE_KEY を .env で設定すること
+// シークレットはDopplerで注入: doppler run -- node server.js
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('❌ SUPABASE_URL / SUPABASE_SERVICE_KEY が未設定です。.env を確認してください。');
+  console.error('❌ SUPABASE_URL / SUPABASE_SERVICE_KEY が未設定です。');
+  console.error('   起動: doppler run -- node server.js');
   process.exit(1);
 }
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── tables/ REST API (Supabase) ─────────────────
+// NOTE: VercelのAPI Routesに移行予定。VMでも動作するよう残しておく。
 
 app.get('/tables/meeting_records', async (req, res) => {
   try {
@@ -181,8 +198,9 @@ app.post('/api/analyze/person', async (req, res) => {
 });
 
 app.listen(PORT, '127.0.0.1', () => {
-  console.log(`✅ NEXUS OPS Server :${PORT}`);
-  console.log(`   Static: ${__dirname}`);
-  console.log(`   DB: Supabase`);
+  console.log(`✅ NEXUS OPS AIサーバー :${PORT}`);
+  console.log(`   役割: AI分析API（gsk依存部分）`);
+  console.log(`   DB: Supabase（フォールバック用 /tables/* も有効）`);
   console.log(`   Engine: gsk super_agent (async/parallel)`);
+  console.log(`   公開URL: https://zvtfabus.gensparkclaw.com/nexus/api/`);
 });
