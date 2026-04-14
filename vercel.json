@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/tables/(.*)",
+      "dest": "/api/tables/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ],
+  "env": {
+    "SUPABASE_URL": "@nexus-ops-supabase-url",
+    "SUPABASE_SERVICE_KEY": "@nexus-ops-supabase-service-key",
+    "AI_API_URL": "@nexus-ops-ai-api-url"
+  }
+}

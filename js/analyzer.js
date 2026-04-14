@@ -1170,10 +1170,17 @@ function tryParse(v, fallback) {
 }
 
 /* ══════════════════════════════════════════════════
-   ★ AI分析エンジン（Gemini 2.5 Flash）
-   VMバックエンド経由でGemini APIを呼び出す
+   ★ AI分析エンジン（gsk super_agent）
+   VM上のサーバーを経由してgskを呼び出す
+   URLは js/config.js で環境ごとに切り替え
 ══════════════════════════════════════════════════ */
-const AI_API_BASE = 'https://zvtfabus.gensparkclaw.com/nexus/api';
+// 動的インポート: ES Module対応環境でconfig.jsを読む
+// HTMLから <script type="module"> で読み込む場合は import 文を使用
+const AI_API_BASE = (typeof window !== 'undefined' && window.NEXUS_AI_API_URL)
+  ? window.NEXUS_AI_API_URL
+  : (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? '/api'
+    : 'https://zvtfabus.gensparkclaw.com/nexus/api';
 
 /* ─── 単票AI分析 ─── */
 async function aiAnalyzeRecord(record) {
