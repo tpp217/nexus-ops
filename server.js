@@ -115,15 +115,36 @@ function gskAnalyzeAsync(instructions, taskName, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
     const escaped = instructions.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
     const cmd = `gsk task super_agent --task_name "${taskName}" --query "以下をJSONで分析してください" --instructions '${escaped}' --output text 2>&1`;
-    exec(cmd, { timeout: timeoutMs }, (err, stdout) => {
+    exec(cmd, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
       if (err) return reject(new Error(err.message));
-      const jsonMatch = stdout.match(/\{[\s\S]*?"ai_[a-z_]+"[\s\S]*\}/);
-      if (!jsonMatch) return reject(new Error('AI応答の解析失敗: ' + stdout.substring(0, 300)));
+      // バランスの取れた { ... } を拾う（ネスト可能）
+      const start = stdout.indexOf('{');
+      if (start < 0) return reject(new Error('AI応答の解析失敗: ' + stdout.substring(0, 300)));
+      let depth = 0, end = -1;
+      for (let i = start; i < stdout.length; i++) {
+        if (stdout[i] === '{') depth++;
+        else if (stdout[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+      }
+      if (end < 0) return reject(new Error('JSONブロック閉じ未検出'));
       try {
-        resolve(JSON.parse(jsonMatch[0]));
+        resolve(JSON.parse(stdout.substring(start, end + 1)));
       } catch(e) {
         reject(new Error('JSONパース失敗: ' + e.message));
       }
+    });
+  });
+}
+
+/**
+ * 汎用テキスト生成（JSONを強制しない、プレーンテキスト応答）
+ */
+function gskGenerateText(instructions, taskName, timeoutMs = 90000) {
+  return new Promise((resolve, reject) => {
+    const escaped = instructions.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+    const cmd = `gsk task super_agent --task_name "${taskName}" --query "指示通りテキストを生成してください" --instructions '${escaped}' --output text 2>&1`;
+    exec(cmd, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (err) return reject(new Error(err.message));
+      resolve(stdout.trim());
     });
   });
 }
@@ -137,35 +158,20 @@ app.post('/api/analyze', async (req, res) => {
   const allText = [content_main, tasks_given, personal_issues, evaluation].filter(Boolean).join('\n');
   if (!allText.trim()) return res.status(400).json({ error: 'テキストが空です' });
 
-  // 新仕様: セクション見出し + 箇条書き構造 + セマンティックハイライトタグ
+  // v3: 余計な見出しを出させないため、ai_review を箇条書き配列で返させる
   const instructions =
-    `あなたは人材育成の専門家です。以下の1on1面談記録を読み、総評をJSON形式で返してください。\n` +
-    `面談対象：${target || '不明'}。期間：${sheet_name || '不明'}。\n\n` +
-    `【面談記録】\n${allText.substring(0, 2000)}\n\n` +
-    `■ai_reviewの出力形式（絶対厳守）\n` +
-    `必ず以下の構造・文字列で出力する。見出し・改行・行頭「・」を守らない場合は失格。\n\n` +
-    `出力テンプレート（この通りに出力すること。\\nは改行）:\n` +
-    `【課題】\\n・項目1\\n・項目2\\n【状態】\\n・項目1\\n【モチベーション】\\n・項目1\\n【原因と結果】\\n・項目1\\n・項目2\\n【アクション】\\n・項目1\\n・項目2\n\n` +
+    `あなたは人材育成の専門家。以下の1on1面談記録（対象:${target || '不明'} / 期間:${sheet_name || '不明'}）を読み、要点をまとめる。\n\n` +
+    `【面談記録】\n${allText.substring(0, 5000)}\n\n` +
+    `出力はJSONのみ。Markdown・見出し・前置き一切禁止。\n\n` +
+    `{"ai_review":["要点1","要点2","要点3","要点4","要点5"],` +
+    `"ai_status":"進行中",` +
+    `"ai_actions_decided":[],"ai_actions_pending":[],"ai_actions_planned":[]}\n\n` +
     `ルール:\n` +
-    `・5つのセクション（課題/状態/モチベーション/原因と結果/アクション）を必ずこの順で全て出す\n` +
-    `・各セクション見出しは【】で囲み、直後に\\nで改行する\n` +
-    `・各項目は必ず行頭「・」（中点）で開始し、末尾で\\n改行する\n` +
-    `・1項目は1〜2文、合計600字前後\n` +
-    `・前置き・自己紹介・入力の丸写し・Markdown記法は禁止\n` +
-    `・同じ内容を別セクションに繰り返さない\n\n` +
-    `■ハイライト指示（セマンティック強調）\n` +
-    `特に重要な語句・フレーズを、本文の該当位置で次のタグで囲んでハイライトする:\n` +
-    `・《赤|…》＝課題・懸念・リスク・停滞・深刻な問題\n` +
-    `・《緑|…》＝強み・成長・改善・成果\n` +
-    `・《青|…》＝状態・傾向・事実の把握\n` +
-    `・《金|…》＝アクション・方針・決定事項・今後の指針\n` +
-    `対象は語句〜短いフレーズ（最大25字）。タグは各セクション1〜3箇所、重要度の高いものだけに絞る。\n\n` +
-    `■出力は以下のJSONのみ（前置き・説明・Markdown不可）:\n` +
-    `{"ai_review":"上記テンプレートに従った本文（タグ埋め込み済み、\\nで改行）",` +
-    `"ai_status":"進行中／停滞中／予定のいずれか一言",` +
-    `"ai_actions_decided":["決定したアクション（最大5件）"],` +
-    `"ai_actions_pending":["保留・検討中の事項（最大3件）"],` +
-    `"ai_actions_planned":["今後予定している事項（最大3件）"]}`;
+    `- ai_reviewは4〜6件の文字列配列。1件=1〜2文（40〜80字）。箇条書き記号や見出しは不要（配列がそのまま箇条書きになる）。\n` +
+    `- 観点は「課題・状態・モチベ・原因/結果・見落とせない事実」をバランス良く。同じ内容は重複させない。\n` +
+    `- ai_statusは「進行中」「停滞中」「予定」のいずれか1語。\n` +
+    `- ai_actions_decided/pending/plannedはそれぞれ短文配列（各最大3件、短く）。無ければ[]。\n` +
+    `- 入力の丸写し禁止。必ず要約する。`;
 
   try {
     const result = await gskAnalyzeAsync(instructions, '面談総評');
@@ -192,32 +198,18 @@ app.post('/api/analyze/person', async (req, res) => {
   }).join('\n\n');
 
   const instructions =
-    `あなたは人材育成の専門家です。以下は${target || '対象者'}の${records.length}回分の1on1面談記録です。全体を俯瞰した総合評価をJSON形式で返してください。\n\n` +
-    `【面談記録（全${records.length}回分）】\n${summaries.substring(0, 3000)}\n\n` +
-    `■ai_reviewの出力形式（絶対厳守）\n` +
-    `必ず以下の構造・文字列で出力する。見出し・改行・行頭「・」を守らない場合は失格。\n\n` +
-    `出力テンプレート（この通りに出力すること。\\nは改行）:\n` +
-    `【総合評価】\\n・項目1\\n・項目2\\n【成長の軌跡】\\n・項目1\\n【一貫した強み】\\n・項目1\\n【継続課題】\\n・項目1\\n【改善傾向】\\n・項目1\\n【懸念】\\n・項目1\\n【今後の方針】\\n・項目1\\n・項目2\n\n` +
+    `あなたは人材育成の専門家。${target || '対象者'}の${records.length}回分の1on1面談記録から全体を俯瞰した要点をまとめる。\n\n` +
+    `【面談記録（全${records.length}回分）】\n${summaries.substring(0, 8000)}\n\n` +
+    `出力はJSONのみ。Markdown・見出し・前置き一切禁止。\n\n` +
+    `{"ai_review":["要点1","要点2","要点3","要点4","要点5","要点6"],` +
+    `"ai_status":"進行中",` +
+    `"ai_actions_decided":[],"ai_actions_pending":[],"ai_actions_planned":[]}\n\n` +
     `ルール:\n` +
-    `・7つのセクション（総合評価/成長の軌跡/一貫した強み/継続課題/改善傾向/懸念/今後の方針）を必ずこの順で全て出す\n` +
-    `・各セクション見出しは【】で囲み、直後に\\nで改行する\n` +
-    `・各項目は必ず行頭「・」（中点）で開始し、末尾で\\n改行する\n` +
-    `・1項目は1〜2文、合計900字前後\n` +
-    `・前置き・自己紹介・入力の丸写し・Markdown記法は禁止\n` +
-    `・同じ内容を別セクションに繰り返さない\n\n` +
-    `■ハイライト指示（セマンティック強調）\n` +
-    `特に重要な語句・フレーズを、本文の該当位置で次のタグで囲んでハイライトする:\n` +
-    `・《赤|…》＝課題・懸念・リスク・停滞・深刻な問題\n` +
-    `・《緑|…》＝強み・成長・改善・成果\n` +
-    `・《青|…》＝状態・傾向・事実の把握\n` +
-    `・《金|…》＝アクション・方針・決定事項・今後の指針\n` +
-    `対象は語句〜短いフレーズ（最大25字）。タグは各セクション1〜3箇所、重要度の高いものだけに絞る。\n\n` +
-    `■出力は以下のJSONのみ（前置き・説明・Markdown不可）:\n` +
-    `{"ai_review":"上記テンプレートに従った本文（タグ埋め込み済み、\\nで改行）",` +
-    `"ai_status":"進行中／停滞中／予定のいずれか一言",` +
-    `"ai_actions_decided":["全体を通じて決定・実行されたこと（最大5件）"],` +
-    `"ai_actions_pending":["継続して保留・検討中の事項（最大3件）"],` +
-    `"ai_actions_planned":["今後取り組むべき事項（最大3件）"]}`;
+    `- ai_reviewは6〜8件の文字列配列。1件=1〜2文（40〜90字）。箇条書き記号や見出しは不要。\n` +
+    `- 観点は「成長の軌跡・一貫した強み・継続課題・改善傾向・懸念・今後の方針」をバランス良く。重複禁止。\n` +
+    `- ai_statusは「進行中」「停滞中」「予定」のいずれか1語。\n` +
+    `- ai_actions_decided/pending/plannedは短文配列（各最大3件）。無ければ[]。\n` +
+    `- 入力の丸写し禁止。必ず要約する。`;
 
   try {
     const result = await gskAnalyzeAsync(instructions, `${target || '個人'}全体総評`, 180000);
@@ -225,6 +217,48 @@ app.post('/api/analyze/person', async (req, res) => {
   } catch (err) {
     console.error('gsk analyze/person error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/highlight
+ * 箇条書き配列の各項目に対し、重要語句を《色|…》タグで囲んで返す。
+ * body: { items: string[] } → { items: string[] }（元の配列順を維持）
+ */
+app.post('/api/highlight', async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items が空です' });
+  }
+  const payload = items.map((s, i) => `${i+1}. ${s}`).join('\n');
+  const instructions =
+    `次の箇条書きの各行について、重要な語句を以下のタグで囲み、その他は一切変更せずに返してください。\n` +
+    `・《赤|…》＝課題・懸念・リスク・停滞・深刻な問題\n` +
+    `・《緑|…》＝強み・成長・改善・成果\n` +
+    `・《青|…》＝状態・傾向・事実の把握\n` +
+    `・《金|…》＝アクション・方針・決定事項・今後の指針\n\n` +
+    `ルール:\n` +
+    `- 各行につきタグは0〜2箇所。明確に該当する語だけ。過剰につけない。\n` +
+    `- タグの内側は最大20字の語句。文全体を囲まない。\n` +
+    `- 行番号 "${items.length > 9 ? 'N.' : 'N.'}" はそのまま保持。行の追加・削除・並び替え禁止。\n` +
+    `- 説明文・前置き・Markdown禁止。番号付き行だけを返す。\n\n` +
+    `【入力】\n${payload}\n\n` +
+    `【出力】上記と同じ形式で、タグを付けて返す。`;
+
+  try {
+    const text = await gskGenerateText(instructions, 'ハイライト付与', 90000);
+    // 行ごとに「N. 本文」を拾って番号順に整理
+    const map = new Map();
+    text.split(/\r?\n/).forEach(line => {
+      const m = line.match(/^\s*(\d+)[\.\．、)]\s*(.+)$/);
+      if (m) map.set(parseInt(m[1]), m[2].trim());
+    });
+    const out = items.map((orig, i) => map.get(i + 1) || orig);
+    res.json({ ok: true, items: out });
+  } catch (err) {
+    console.error('gsk highlight error:', err.message);
+    // 失敗時は元の配列をそのまま返す（UIは崩れない）
+    res.status(200).json({ ok: false, items, error: err.message });
   }
 });
 
