@@ -1210,6 +1210,25 @@ async function aiAnalyzeRecord(record) {
   }
 }
 
+/* ─── 箇条書きハイライト別呼び出し ─── */
+async function aiHighlightItems(items) {
+  if (!Array.isArray(items) || !items.length) return items;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90000);
+    const resp = await fetch(`${AI_API_BASE}/highlight`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    if (!resp.ok) return items;
+    const data = await resp.json();
+    return Array.isArray(data.items) && data.items.length === items.length ? data.items : items;
+  } catch { return items; }
+}
+
 /* ─── 個人全体AI分析 ─── */
 async function aiAnalyzePerson(records, personName) {
   const controller = new AbortController();
@@ -1231,67 +1250,60 @@ async function aiAnalyzePerson(records, personName) {
   }
 }
 
-/* ─── AI総評テキスト整形（セクション分割 + セマンティックタグハイライト） ─── */
-// AIが文中に埋めたタグ 《色|本文》 を <span class="hl hl-色"> に変換
+/* ─── AI総評テキスト整形（箇条書き配列 + セマンティックタグハイライト） ─── */
 const HL_COLOR_MAP = { '赤': 'red', '緑': 'green', '青': 'blue', '金': 'gold' };
 
 function applyHighlightTags(escapedText) {
-  // escHtml 済みの文字列に対して適用（《》 は HTML エスケープの影響を受けない）
   return escapedText.replace(/《(赤|緑|青|金)\|([^》]+)》/g, (_, color, body) =>
     `<span class="hl hl-${HL_COLOR_MAP[color]}">${body}</span>`
   );
 }
 
-function formatAiReview(rawText) {
-  if (!rawText) return '';
-  // 保険: 【xxx】と・の直前に改行を補う（AIが改行を入れなかった場合の救済）
-  const normalized = rawText
+// AI が返しがちな余計な装飾を除去
+function stripDecor(s) {
+  return String(s)
+    .replace(/^\s*[#＃]+\s*/, '')                // Markdown見出し
+    .replace(/^\s*[\*＊]+\s*/, '')               // Markdown太字開始
+    .replace(/\*\*([^*]+)\*\*/g, '$1')           // **太字**
+    .replace(/^\s*[-\*・･‧•]+\s*/, '')           // 箇条書き記号
+    .replace(/^\s*\d+[\.\．、)]\s*/, '')         // 番号
+    .replace(/^\s*【[^】]*】\s*/, '')             // 先頭の【見出し】
+    .trim();
+}
+
+// rawReview: 配列 or 文字列。配列を優先、文字列は箇条書き抽出
+function toBullets(rawReview) {
+  if (Array.isArray(rawReview)) {
+    return rawReview.map(stripDecor).filter(Boolean);
+  }
+  if (typeof rawReview !== 'string' || !rawReview.trim()) return [];
+  const text = rawReview
     .replace(/】/g, '】\n')
     .replace(/([^\n])[・･]/g, '$1\n・')
-    .replace(/\n\s*\n+/g, '\n');
-  const escaped = escHtml(normalized);
-  const lines = escaped.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-
-  const blocks = [];
-  let current = null;
+    .replace(/([^\n])\*\*/g, '$1\n**');
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const bullets = [];
   for (const line of lines) {
-    const headingMatch = line.match(/^【(.+?)】(.*)$/);
-    if (headingMatch) {
-      if (current) blocks.push(current);
-      current = { heading: headingMatch[1], items: [] };
-      const rest = headingMatch[2].trim();
-      if (rest) current.items.push(rest.replace(/^[・･‧•\-]+\s*/, ''));
-    } else if (line.match(/^[・･‧•\-]/)) {
-      const item = line.replace(/^[・･‧•\-]+\s*/, '');
-      if (!current) current = { heading: '', items: [] };
-      current.items.push(item);
-    } else {
-      if (!current) current = { heading: '', items: [] };
-      current.items.push(line);
-    }
+    // 見出しだけ・空白だけは捨てる
+    if (/^【[^】]*】\s*$/.test(line)) continue;
+    if (/^#{1,6}\s/.test(line)) continue;
+    const cleaned = stripDecor(line);
+    if (cleaned && cleaned.length > 3) bullets.push(cleaned);
   }
-  if (current) blocks.push(current);
+  if (bullets.length) return bullets;
+  // 最終フォールバック: 句点分割
+  return rawReview.split(/(?<=。)/).map(s => stripDecor(s)).filter(Boolean);
+}
 
-  // フォールバック: 見出しも箇条書きも取れなかったら句点で分割して箇条書き化
-  const totalItems = blocks.reduce((s, b) => s + b.items.length, 0);
-  const hasHeading = blocks.some(b => b.heading);
-  if (!hasHeading && totalItems <= 1) {
-    const sentences = escaped.split(/(?<=。)/).map(s => s.trim()).filter(Boolean);
-    return `
-      <div class="ai-review-section">
-        <ul class="ai-review-list">
-          ${sentences.map(s => `<li>${applyHighlightTags(s)}</li>`).join('')}
-        </ul>
-      </div>`;
-  }
-
-  return blocks.map(b => `
+function formatAiReview(rawReview) {
+  const bullets = toBullets(rawReview);
+  if (!bullets.length) return '';
+  return `
     <div class="ai-review-section">
-      ${b.heading ? `<div class="ai-review-heading">${applyHighlightTags(b.heading)}</div>` : ''}
       <ul class="ai-review-list">
-        ${b.items.map(i => `<li>${applyHighlightTags(i)}</li>`).join('')}
+        ${bullets.map(b => `<li>${applyHighlightTags(escHtml(b))}</li>`).join('')}
       </ul>
-    </div>`).join('');
+    </div>`;
 }
 
 /* ─── AI総評レンダリング（単票） ─── */

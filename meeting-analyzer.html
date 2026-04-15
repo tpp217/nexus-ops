@@ -1234,8 +1234,13 @@ async function triggerAiCard(btn, recordId) {
 
   try {
     const result = await aiAnalyzeRecord(record);
+    // ハイライト別呼び出し（失敗しても元の配列で続行）
+    if (Array.isArray(result.ai_review) && result.ai_review.length) {
+      resultEl.innerHTML = '<div class="ai-loading"><i class="fa-solid fa-spinner fa-spin"></i> 重要語をハイライト中...</div>';
+      result.ai_review = await aiHighlightItems(result.ai_review);
+    }
     resultEl.innerHTML = renderAiResult(result);
-    btn.style.display = 'none'; // 実行後は非表示
+    btn.style.display = 'none';
   } catch (err) {
     const msg = err.message.includes('429') || err.message.includes('quota')
       ? '⚠️ 本日の無料枠(20回)を使い切りました。明日またお試しください。'
@@ -1261,6 +1266,10 @@ async function triggerAiPerson(personName) {
   try {
     const records = personMap[personName];
     const result = await aiAnalyzePerson(records, personName);
+    if (Array.isArray(result.ai_review) && result.ai_review.length) {
+      resultEl.innerHTML = '<div class="ai-loading"><i class="fa-solid fa-spinner fa-spin"></i> 重要語をハイライト中...</div>';
+      result.ai_review = await aiHighlightItems(result.ai_review);
+    }
     resultEl.innerHTML = renderAiPersonResult(result);
     if (btn) btn.style.display = 'none';
   } catch (err) {
@@ -1273,7 +1282,7 @@ async function triggerAiPerson(personName) {
 }
 
 </script>
-<script src="js/analyzer.js?v=4"></script>
+<script src="js/analyzer.js?v=5"></script>
 <script src="js/pdf-export.js?v=3"></script>
 <script>
 /* ── 初期ロード（analyzer.js 読込後に実行） ── */
