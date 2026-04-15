@@ -394,13 +394,12 @@ body > *:not(.bg-grid):not(.scan-overlay) { position: relative; z-index: 2; }
   font-weight: 700;
 }
 
-/* 重要キーワード・マーカーハイライト */
+/* セマンティックハイライト（色のみ・背景なし） */
 .hl {
-  padding: 0 3px;
-  border-radius: 2px;
   font-weight: 700;
+  background: none;
 }
-.hl-red   { background: rgba(238,17,68,0.15);  color: var(--c-red); }
-.hl-green { background: rgba(0,187,68,0.15);   color: var(--c-green); }
-.hl-blue  { background: rgba(0,153,238,0.15);  color: var(--c-blue); }
-.hl-gold  { background: rgba(221,170,0,0.18);  color: var(--c-gold); }
+.hl-red   { color: var(--c-red); background: none; }
+.hl-green { color: var(--c-green); background: none; }
+.hl-blue  { color: var(--c-blue); background: none; }
+.hl-gold  { color: var(--c-gold); background: none; }

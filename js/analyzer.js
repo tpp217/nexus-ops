@@ -1231,29 +1231,25 @@ async function aiAnalyzePerson(records, personName) {
   }
 }
 
-/* ─── AI総評テキスト整形（セクション分割 + キーワードハイライト） ─── */
-// 色別ハイライト対象キーワード（右側ほど優先度低、先頭一致で置換）
-const AI_HIGHLIGHT_KEYWORDS = {
-  red:   ['課題', '懸念', '停滞', 'リスク', '問題', '不足', '遅れ'],
-  green: ['強み', '改善', '成長', '成果', '前進', '定着'],
-  blue:  ['進行', '状態', '継続', '傾向'],
-  gold:  ['決定', 'アクション', '方針', '今後', '予定']
-};
+/* ─── AI総評テキスト整形（セクション分割 + セマンティックタグハイライト） ─── */
+// AIが文中に埋めたタグ 《色|本文》 を <span class="hl hl-色"> に変換
+const HL_COLOR_MAP = { '赤': 'red', '緑': 'green', '青': 'blue', '金': 'gold' };
 
-function highlightAiKeywords(text) {
-  // text はすでに escHtml 済み文字列
-  let out = text;
-  for (const [color, words] of Object.entries(AI_HIGHLIGHT_KEYWORDS)) {
-    const pattern = new RegExp(`(${words.join('|')})`, 'g');
-    out = out.replace(pattern, `<mark class="hl hl-${color}">$1</mark>`);
-  }
-  return out;
+function applyHighlightTags(escapedText) {
+  // escHtml 済みの文字列に対して適用（《》 は HTML エスケープの影響を受けない）
+  return escapedText.replace(/《(赤|緑|青|金)\|([^》]+)》/g, (_, color, body) =>
+    `<span class="hl hl-${HL_COLOR_MAP[color]}">${body}</span>`
+  );
 }
 
 function formatAiReview(rawText) {
   if (!rawText) return '';
-  // 【見出し】で分割してセクション化、・で箇条書き化
-  const escaped = escHtml(rawText);
+  // 保険: 【xxx】と・の直前に改行を補う（AIが改行を入れなかった場合の救済）
+  const normalized = rawText
+    .replace(/】/g, '】\n')
+    .replace(/([^\n])[・･]/g, '$1\n・')
+    .replace(/\n\s*\n+/g, '\n');
+  const escaped = escHtml(normalized);
   const lines = escaped.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
   const blocks = [];
@@ -1276,13 +1272,24 @@ function formatAiReview(rawText) {
   }
   if (current) blocks.push(current);
 
-  if (!blocks.length) return `<div class="ai-review-text">${highlightAiKeywords(escaped).replace(/\n/g, '<br>')}</div>`;
+  // フォールバック: 見出しも箇条書きも取れなかったら句点で分割して箇条書き化
+  const totalItems = blocks.reduce((s, b) => s + b.items.length, 0);
+  const hasHeading = blocks.some(b => b.heading);
+  if (!hasHeading && totalItems <= 1) {
+    const sentences = escaped.split(/(?<=。)/).map(s => s.trim()).filter(Boolean);
+    return `
+      <div class="ai-review-section">
+        <ul class="ai-review-list">
+          ${sentences.map(s => `<li>${applyHighlightTags(s)}</li>`).join('')}
+        </ul>
+      </div>`;
+  }
 
   return blocks.map(b => `
     <div class="ai-review-section">
-      ${b.heading ? `<div class="ai-review-heading">${highlightAiKeywords(escHtml(b.heading))}</div>` : ''}
+      ${b.heading ? `<div class="ai-review-heading">${applyHighlightTags(b.heading)}</div>` : ''}
       <ul class="ai-review-list">
-        ${b.items.map(i => `<li>${highlightAiKeywords(i)}</li>`).join('')}
+        ${b.items.map(i => `<li>${applyHighlightTags(i)}</li>`).join('')}
       </ul>
     </div>`).join('');
 }
