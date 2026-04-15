@@ -1231,6 +1231,62 @@ async function aiAnalyzePerson(records, personName) {
   }
 }
 
+/* ─── AI総評テキスト整形（セクション分割 + キーワードハイライト） ─── */
+// 色別ハイライト対象キーワード（右側ほど優先度低、先頭一致で置換）
+const AI_HIGHLIGHT_KEYWORDS = {
+  red:   ['課題', '懸念', '停滞', 'リスク', '問題', '不足', '遅れ'],
+  green: ['強み', '改善', '成長', '成果', '前進', '定着'],
+  blue:  ['進行', '状態', '継続', '傾向'],
+  gold:  ['決定', 'アクション', '方針', '今後', '予定']
+};
+
+function highlightAiKeywords(text) {
+  // text はすでに escHtml 済み文字列
+  let out = text;
+  for (const [color, words] of Object.entries(AI_HIGHLIGHT_KEYWORDS)) {
+    const pattern = new RegExp(`(${words.join('|')})`, 'g');
+    out = out.replace(pattern, `<mark class="hl hl-${color}">$1</mark>`);
+  }
+  return out;
+}
+
+function formatAiReview(rawText) {
+  if (!rawText) return '';
+  // 【見出し】で分割してセクション化、・で箇条書き化
+  const escaped = escHtml(rawText);
+  const lines = escaped.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+  const blocks = [];
+  let current = null;
+  for (const line of lines) {
+    const headingMatch = line.match(/^【(.+?)】(.*)$/);
+    if (headingMatch) {
+      if (current) blocks.push(current);
+      current = { heading: headingMatch[1], items: [] };
+      const rest = headingMatch[2].trim();
+      if (rest) current.items.push(rest.replace(/^[・･‧•\-]+\s*/, ''));
+    } else if (line.match(/^[・･‧•\-]/)) {
+      const item = line.replace(/^[・･‧•\-]+\s*/, '');
+      if (!current) current = { heading: '', items: [] };
+      current.items.push(item);
+    } else {
+      if (!current) current = { heading: '', items: [] };
+      current.items.push(line);
+    }
+  }
+  if (current) blocks.push(current);
+
+  if (!blocks.length) return `<div class="ai-review-text">${highlightAiKeywords(escaped).replace(/\n/g, '<br>')}</div>`;
+
+  return blocks.map(b => `
+    <div class="ai-review-section">
+      ${b.heading ? `<div class="ai-review-heading">${highlightAiKeywords(escHtml(b.heading))}</div>` : ''}
+      <ul class="ai-review-list">
+        ${b.items.map(i => `<li>${highlightAiKeywords(i)}</li>`).join('')}
+      </ul>
+    </div>`).join('');
+}
+
 /* ─── AI総評レンダリング（単票） ─── */
 function renderAiResult(result) {
   if (!result) return '';
@@ -1254,8 +1310,8 @@ function renderAiResult(result) {
         ${result.ai_status ? `<span style="margin-left:auto;font-size:0.7rem;font-weight:700;color:${statusColor};border:1px solid ${statusColor};padding:2px 8px;border-radius:4px;">${escHtml(result.ai_status)}</span>` : ''}
       </div>
 
-      <div class="tc-section">
-        <div class="ai-review-text">${escHtml(result.ai_review).replace(/\n/g, '<br>')}</div>
+      <div class="tc-section ai-review-wrap">
+        ${formatAiReview(result.ai_review)}
       </div>
 
       ${(result.ai_actions_decided?.length || result.ai_actions_pending?.length || result.ai_actions_planned?.length) ? `
@@ -1318,9 +1374,9 @@ function renderAiPersonResult(result) {
       </div>
     </div>` : ''}
     ${result.ai_review ? `
-    <div class="tc-section">
+    <div class="tc-section ai-review-wrap">
       <div class="section-title" style="color:var(--c-blue)"><i class="fa-solid fa-comment-dots"></i> 総合評価</div>
-      <div class="prose-item prose-blue" style="white-space:pre-wrap">${escHtml(result.ai_review)}</div>
+      ${formatAiReview(result.ai_review)}
     </div>` : ''}
     ${Array.isArray(result.ai_actions_decided) && result.ai_actions_decided.length ? `
     <div class="tc-section">
