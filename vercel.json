@@ -2,5 +2,16 @@
   "version": 2,
   "rewrites": [
     { "source": "/tables/:path*", "destination": "/api/tables/:path*" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'self' https://utinc.dev https://*.utinc.dev https://*.vercel.app"
+        }
+      ]
+    }
   ]
 }
