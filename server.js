@@ -19,12 +19,14 @@ import { createClient } from '@supabase/supabase-js';
 const app  = express();
 const PORT = process.env.PORT || 3100;
 
-// CORSはVercelドメインとローカル開発を許可
+// CORSはカスタムドメイン/Vercelドメインとローカル開発を許可
 const ALLOWED_ORIGINS = [
   'https://zvtfabus.gensparkclaw.com',
   'http://localhost:3000',
   'http://localhost:3100',
   /\.vercel\.app$/,
+  /\.utinc\.dev$/,            // 本番カスタムドメイン（nexus.utinc.dev 等）
+  'https://utinc.dev',        // apex（OPERATION HUB など）
 ];
 app.use(cors({
   origin: (origin, cb) => {
