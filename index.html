@@ -3,279 +3,282 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NEXUS OPS // 業務効率化システム</title>
+  <title>NEXUS OPS / 業務効率化プラットフォーム</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=202604230001">
+  <script>
+    if (window.self !== window.top) {
+      document.documentElement.classList.add('is-embedded');
+    }
+  </script>
   <style>
     /* ===== HERO ===== */
     .hero-header {
       text-align: center;
-      padding: 52px 20px 28px;
+      padding: 40px 24px 20px;
+      max-width: 900px;
+      margin: 0 auto;
     }
     .hero-eyebrow {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 0.6rem;
-      color: var(--c-blue);
-      letter-spacing: 0.5em;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--blue);
+      letter-spacing: 0.18em;
+      font-weight: 600;
       margin-bottom: 10px;
-      text-shadow: var(--glow-blue);
+      text-transform: uppercase;
     }
     .hero-title {
-      font-family: 'Orbitron', monospace;
-      font-size: clamp(2rem, 5vw, 3.2rem);
-      font-weight: 900;
-      color: var(--text-main);
-      letter-spacing: 0.18em;
+      font-family: var(--font-sans);
+      font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
       margin-bottom: 6px;
     }
-    .hero-title .hl { color: var(--c-blue); text-shadow: var(--glow-blue); }
+    .hero-title .hl { color: var(--blue); }
     .hero-sub {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 0.75rem;
-      color: var(--text-sub);
-      letter-spacing: 0.28em;
-      margin-bottom: 12px;
+      font-size: 13px;
+      color: var(--text-2);
+      margin-bottom: 8px;
     }
     .hero-date {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 0.63rem;
-      color: var(--text-dim);
-      letter-spacing: 0.2em;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 11px;
+      color: var(--text-3);
+      letter-spacing: 0;
     }
 
     /* ===== DIVIDER ===== */
     .divider-line {
-      width: 80%; max-width: 680px;
-      margin: 18px auto;
-      height: 1.5px;
-      background: linear-gradient(90deg, transparent, var(--c-blue), #44ddff, var(--c-blue), transparent);
-      box-shadow: 0 0 8px rgba(0,153,238,0.4);
+      width: 100%;
+      max-width: 1400px;
+      margin: 14px auto;
+      height: 1px;
+      background: var(--border-c);
     }
 
     /* ===== STATS ===== */
     .stats-bar {
-      display: flex; justify-content: center;
-      gap: 40px; padding: 14px 20px; flex-wrap: wrap;
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      padding: 10px 24px 16px;
+      flex-wrap: wrap;
+      max-width: 900px;
+      margin: 0 auto;
     }
     .stat-item { text-align: center; }
     .stat-value {
-      font-family: 'Orbitron', monospace;
-      font-size: 1.6rem; font-weight: 700;
-      color: var(--c-blue);
-      text-shadow: var(--glow-blue);
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.02em;
       display: block;
+      line-height: 1.2;
     }
     .stat-label {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 0.57rem; color: var(--text-dim);
-      letter-spacing: 0.22em; text-transform: uppercase;
+      font-size: 10.5px;
+      color: var(--text-3);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-top: 2px;
     }
 
     /* ===== SYS INFO ===== */
     .sys-info-bar {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 6px 40px;
-      border-top: 1px solid var(--border-blue);
-      border-bottom: 1px solid var(--border-blue);
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 0.58rem; color: var(--text-dim);
-      letter-spacing: 0.14em;
-      background: rgba(0,153,238,0.03);
-      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 24px;
+      border-top: 1px solid var(--border-c);
+      border-bottom: 1px solid var(--border-c);
+      font-size: 11px;
+      color: var(--text-3);
+      letter-spacing: 0.02em;
+      background: var(--surface-2);
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
     }
-    .sys-info-item { display:flex; gap:6px; align-items:center; }
-    .sys-dot { width:4px; height:4px; border-radius:50%; background:var(--c-blue); box-shadow:var(--glow-blue); }
-
-    /* ===== TICKER ===== */
-    .ticker-wrap {
-      overflow: hidden;
-      border-top: 1px solid rgba(0,153,238,0.18);
-      border-bottom: 1px solid rgba(0,153,238,0.18);
-      padding: 7px 0;
-      background: rgba(0,153,238,0.03);
-      margin-bottom: 16px;
+    .sys-info-item {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-family: var(--font-mono);
     }
-    .ticker-inner {
-      display: flex; gap: 70px;
-      animation: ticker 32s linear infinite;
-      white-space: nowrap;
+    .sys-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
     }
-    .ticker-item {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 0.6rem; color: var(--text-dim); letter-spacing: 0.12em;
-    }
-    .ticker-item span { color: var(--c-blue); text-shadow: var(--glow-blue); }
-    @keyframes ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-    @keyframes blink-dot { 0%,100%{opacity:1} 50%{opacity:0} }
 
     /* ===== MODULE GRID ===== */
     .modules-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 20px;
-      padding: 16px 40px 56px;
-      max-width: 1400px; margin: 0 auto;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+      padding: 12px 24px 56px;
+      max-width: 1400px;
+      margin: 0 auto;
     }
 
     /* ===== MODULE CARD ===== */
     .module-card {
       position: relative;
-      background: var(--bg-card);
-      border: 1.5px solid var(--border-dim);
-      clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px,
-                         100% 100%, 18px 100%, 0 calc(100% - 18px));
-      padding: 22px 22px 18px;
+      background: var(--surface);
+      border: 1px solid var(--border-c);
+      border-radius: var(--radius);
+      padding: 16px 16px 14px;
       cursor: pointer;
-      transition: all 0.28s ease;
-      overflow: hidden;
+      transition: border-color .15s, box-shadow .15s, transform .15s;
       text-decoration: none;
       display: block;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
-    }
-    /* 上部カラーライン */
-    .module-card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 2.5px;
-      background: linear-gradient(90deg, transparent, var(--card-color, var(--c-blue)), transparent);
-      box-shadow: 0 0 8px var(--card-color, var(--c-blue));
+      color: var(--text);
     }
     .module-card:hover {
-      transform: translateY(-4px);
-      border-color: var(--card-color, var(--c-blue));
-      box-shadow: 0 6px 28px rgba(0,0,0,0.08), 0 0 0 1px var(--card-color, var(--c-blue)),
-                  0 8px 32px color-mix(in srgb, var(--card-color, var(--c-blue)) 20%, transparent);
+      border-color: var(--card-color, var(--blue));
+      box-shadow: var(--shadow-sm);
+      transform: translateY(-1px);
     }
 
-    .corner-tl, .corner-br { position:absolute; width:14px; height:14px; }
-    .corner-tl { top:5px; left:5px; border-top:1.5px solid var(--card-color,var(--c-blue)); border-left:1.5px solid var(--card-color,var(--c-blue)); }
-    .corner-br { bottom:5px; right:5px; border-bottom:1.5px solid var(--card-color,var(--c-blue)); border-right:1.5px solid var(--card-color,var(--c-blue)); }
+    /* コーナーマーカーは撤去 */
+    .corner-tl, .corner-br { display: none; }
 
     .module-id {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 0.57rem; color: var(--text-dim);
-      letter-spacing: 0.3em; margin-bottom: 10px;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 10.5px;
+      color: var(--text-3);
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      margin-bottom: 8px;
     }
     .module-icon-row {
-      display: flex; align-items: center;
-      justify-content: space-between; margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
     }
     .module-icon {
-      font-size: 1.65rem;
-      color: var(--card-color, var(--c-blue));
-      filter: drop-shadow(0 0 6px var(--card-color, var(--c-blue)));
+      font-size: 20px;
+      color: var(--card-color, var(--blue));
     }
 
     /* ステータスバッジ */
     .module-status {
-      display: inline-flex; align-items: center;
+      display: inline-flex;
+      align-items: center;
       gap: 5px;
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 0.57rem; letter-spacing: 0.18em;
-      padding: 3px 8px; border: 1.5px solid;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 2px 8px;
+      border-radius: 3px;
     }
     .status-active {
-      color: var(--c-green); border-color: var(--c-green);
-      background: rgba(0,187,68,0.07);
-      box-shadow: 0 0 6px rgba(0,187,68,0.3);
+      color: var(--green);
+      background: var(--green-soft);
     }
-    .status-standby { color: var(--text-dim); border-color: var(--border-dim); }
-    .status-dot { width:5px; height:5px; border-radius:50%; background:currentColor; }
-    .status-dot.blink { animation: blink-dot 1.1s ease-in-out infinite; }
+    .status-standby {
+      color: var(--text-3);
+      background: var(--surface-3);
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .status-dot.blink { animation: blink-dot 1.6s ease-in-out infinite; }
 
     .module-title {
-      font-family: 'Orbitron', monospace;
-      font-size: 0.88rem; font-weight:700;
-      color: var(--text-main); letter-spacing: 0.08em; margin-bottom: 6px;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
     }
     .module-desc {
-      font-family: 'Noto Sans JP', sans-serif;
-      font-size: 0.74rem; color: var(--text-sub); line-height: 1.65;
+      font-size: 12.5px;
+      color: var(--text-2);
+      line-height: 1.6;
     }
 
     /* カラーバリエーション */
-    .card-blue  { --card-color: var(--c-blue);  }
-    .card-green { --card-color: var(--c-green); }
-    .card-red   { --card-color: var(--c-red);   }
-    .card-gold  { --card-color: var(--c-gold);  }
-    .card-white { --card-color: #aabbcc; }
+    .card-blue  { --card-color: var(--blue); }
+    .card-green { --card-color: var(--green); }
+    .card-red   { --card-color: var(--red); }
+    .card-gold  { --card-color: var(--amber); }
+    .card-white { --card-color: var(--text-3); }
 
     /* COMING SOON */
     .coming-soon-overlay {
-      position: absolute; inset: 0;
-      background: rgba(240,244,255,0.82);
-      display: flex; align-items: center; justify-content: center;
-      clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px,
-                         100% 100%, 18px 100%, 0 calc(100% - 18px));
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(1px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
     }
     .coming-soon-text {
-      font-family: 'Orbitron', monospace;
-      font-size: 0.63rem; color: var(--text-dim);
-      letter-spacing: 0.3em;
-      border: 1px solid var(--border-dim); padding: 5px 14px;
-      background: rgba(255,255,255,0.8);
+      font-size: 10.5px;
+      color: var(--text-2);
+      letter-spacing: 0.1em;
+      font-weight: 600;
+      border: 1px solid var(--border-c);
+      padding: 4px 12px;
+      border-radius: 3px;
+      background: var(--surface);
+      text-transform: uppercase;
     }
 
     /* ===== RESPONSIVE ===== */
-    @media (max-width:768px) {
-      .modules-grid { padding: 14px 16px 40px; }
-      .sys-info-bar  { padding: 6px 16px; flex-wrap:wrap; gap:6px; }
-      .stats-bar     { gap: 24px; }
+    @media (max-width: 768px) {
+      .modules-grid { padding: 12px 16px 40px; }
+      .sys-info-bar { padding: 8px 16px; }
+      .stats-bar    { gap: 24px; }
     }
   </style>
 </head>
 <body>
 
-<div class="bg-grid"></div>
-<div class="scan-overlay"></div>
-
 <!-- NAV -->
 <nav class="navbar">
   <div class="nav-logo">
-    <span class="nav-logo-bracket">[</span>NEXUS<span class="nav-logo-accent">OPS</span><span class="nav-logo-bracket">]</span>
+    NEXUS<span class="nav-logo-accent">OPS</span>
   </div>
   <div class="nav-links">
-    <span class="nav-link active">// DASHBOARD</span>
+    <span class="nav-link active">ダッシュボード</span>
   </div>
   <div class="nav-status">
-    <button onclick="downloadZip()" id="dlBtn" style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:0.15em;padding:5px 14px;background:transparent;border:1px solid var(--c-gold);color:var(--c-gold);cursor:pointer;transition:all 0.2s;">
-      ⬇ ZIP DL
+    <button onclick="downloadZip()" id="dlBtn" class="btn btn-sm">
+      <i class="fa-solid fa-download"></i> ZIP
     </button>
-    <span style="width:6px;height:6px;border-radius:50%;background:var(--c-green);display:inline-block;animation:blink-dot 1.1s ease-in-out infinite;box-shadow:var(--glow-green);"></span>
-    <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--c-green);letter-spacing:0.2em;text-shadow:var(--glow-green);">SYS_ONLINE</span>
+    <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--green);font-weight:600;">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;"></span>
+      稼働中
+    </span>
   </div>
 </nav>
 
-<!-- TICKER -->
-<div class="ticker-wrap">
-  <div class="ticker-inner">
-    <span class="ticker-item">▶ NEXUS OPS v3.0.0</span>
-    <span class="ticker-item">▶ STATUS: <span>OPERATIONAL</span></span>
-    <span class="ticker-item">▶ MODULES ACTIVE: <span>1 / 5</span></span>
-    <span class="ticker-item">▶ MT ANALYZER: <span>COUNSELOR MODE</span></span>
-    <span class="ticker-item">▶ FILE SUPPORT: <span>.xlsx / .xls / .zip</span></span>
-    <span class="ticker-item">▶ MULTI-PERSON: <span>ENABLED</span></span>
-    <span class="ticker-item">▶ LAST SYNC: <span id="tickerTime">--</span></span>
-    <!-- dup for seamless loop -->
-    <span class="ticker-item">▶ NEXUS OPS v3.0.0</span>
-    <span class="ticker-item">▶ STATUS: <span>OPERATIONAL</span></span>
-    <span class="ticker-item">▶ MODULES ACTIVE: <span>1 / 5</span></span>
-    <span class="ticker-item">▶ MT ANALYZER: <span>COUNSELOR MODE</span></span>
-    <span class="ticker-item">▶ FILE SUPPORT: <span>.xlsx / .xls / .zip</span></span>
-    <span class="ticker-item">▶ MULTI-PERSON: <span>ENABLED</span></span>
-    <span class="ticker-item">▶ LAST SYNC: <span>--</span></span>
-  </div>
-</div>
-
 <!-- HERO -->
 <header class="hero-header">
-  <div class="hero-eyebrow">// PERSONAL EFFICIENCY SYSTEM //</div>
+  <div class="hero-eyebrow">Personal Efficiency System</div>
   <div class="hero-title">NEXUS <span class="hl">OPS</span></div>
   <div class="hero-sub">業務効率化プラットフォーム</div>
-  <div class="hero-date" id="heroDate">-- INITIALIZING --</div>
+  <div class="hero-date" id="heroDate">--</div>
 </header>
 
 <div class="divider-line"></div>
@@ -284,27 +287,27 @@
 <div class="stats-bar">
   <div class="stat-item">
     <span class="stat-value" id="statModules">1</span>
-    <span class="stat-label">ACTIVE MODULES</span>
+    <span class="stat-label">稼働モジュール</span>
   </div>
   <div class="stat-item">
     <span class="stat-value" id="statRecords">--</span>
-    <span class="stat-label">RECORDS STORED</span>
+    <span class="stat-label">保存レコード</span>
   </div>
   <div class="stat-item">
     <span class="stat-value" id="statAnalyses">--</span>
-    <span class="stat-label">ANALYSES DONE</span>
+    <span class="stat-label">分析回数</span>
   </div>
   <div class="stat-item">
     <span class="stat-value">v3.0</span>
-    <span class="stat-label">BUILD</span>
+    <span class="stat-label">ビルド</span>
   </div>
 </div>
 
 <!-- SYS INFO -->
 <div class="sys-info-bar">
-  <div class="sys-info-item"><div class="sys-dot"></div> NODE: NX-7741-OPS</div>
-  <div class="sys-info-item">KERNEL: CYBERMIND_v3.0 // MT-ANALYZER</div>
-  <div class="sys-info-item">MULTI-PERSON + ZIP: <span style="color:var(--c-green);text-shadow:var(--glow-green);">ENABLED ✓</span></div>
+  <div class="sys-info-item"><span class="sys-dot"></span> 現在稼働モジュール: 個人MT議事録分析</div>
+  <div class="sys-info-item">対応ファイル: .xlsx / .xls / .zip</div>
+  <div class="sys-info-item">複数人物・ZIP一括: <span style="color:var(--green);font-weight:600;">有効</span></div>
 </div>
 
 <!-- MODULES -->
@@ -312,12 +315,11 @@
 
   <!-- 001 ACTIVE -->
   <a href="meeting-analyzer.html" class="module-card card-blue anim-fade-in">
-    <div class="corner-tl"></div><div class="corner-br"></div>
-    <div class="module-id">MODULE // 001</div>
+    <div class="module-id">MODULE 001</div>
     <div class="module-icon-row">
       <i class="fa-solid fa-users module-icon"></i>
       <span class="module-status status-active">
-        <span class="status-dot blink"></span>ACTIVE
+        <span class="status-dot blink"></span>稼働中
       </span>
     </div>
     <div class="module-title">個人MT議事録分析</div>
@@ -326,54 +328,50 @@
 
   <!-- 002 -->
   <div class="module-card card-green anim-fade-in-d1" style="cursor:default;">
-    <div class="corner-tl"></div><div class="corner-br"></div>
-    <div class="module-id">MODULE // 002</div>
+    <div class="module-id">MODULE 002</div>
     <div class="module-icon-row">
       <i class="fa-solid fa-chart-line module-icon"></i>
-      <span class="module-status status-standby"><span class="status-dot"></span>STANDBY</span>
+      <span class="module-status status-standby"><span class="status-dot"></span>準備中</span>
     </div>
     <div class="module-title">売上データ分析</div>
     <div class="module-desc">売上データをCSV/Excelで読み込み、期間比較・トレンド・目標達成率をチャート表示。</div>
-    <div class="coming-soon-overlay"><div class="coming-soon-text">// COMING SOON //</div></div>
+    <div class="coming-soon-overlay"><div class="coming-soon-text">Coming Soon</div></div>
   </div>
 
   <!-- 003 -->
   <div class="module-card card-gold anim-fade-in-d2" style="cursor:default;">
-    <div class="corner-tl"></div><div class="corner-br"></div>
-    <div class="module-id">MODULE // 003</div>
+    <div class="module-id">MODULE 003</div>
     <div class="module-icon-row">
       <i class="fa-solid fa-bell module-icon"></i>
-      <span class="module-status status-standby"><span class="status-dot"></span>STANDBY</span>
+      <span class="module-status status-standby"><span class="status-dot"></span>準備中</span>
     </div>
     <div class="module-title">タスク管理・通知</div>
     <div class="module-desc">日次タスク登録・優先度管理・締め切りアラートを一元管理。重要タスクをゴールドで強調表示。</div>
-    <div class="coming-soon-overlay"><div class="coming-soon-text">// COMING SOON //</div></div>
+    <div class="coming-soon-overlay"><div class="coming-soon-text">Coming Soon</div></div>
   </div>
 
   <!-- 004 -->
   <div class="module-card card-red anim-fade-in-d3" style="cursor:default;">
-    <div class="corner-tl"></div><div class="corner-br"></div>
-    <div class="module-id">MODULE // 004</div>
+    <div class="module-id">MODULE 004</div>
     <div class="module-icon-row">
       <i class="fa-solid fa-shield-halved module-icon"></i>
-      <span class="module-status status-standby"><span class="status-dot"></span>STANDBY</span>
+      <span class="module-status status-standby"><span class="status-dot"></span>準備中</span>
     </div>
     <div class="module-title">リスク・課題管理</div>
     <div class="module-desc">業務リスク・課題を登録し、重大度・緊急度でトリアージ表示。エスカレーション管理。</div>
-    <div class="coming-soon-overlay"><div class="coming-soon-text">// COMING SOON //</div></div>
+    <div class="coming-soon-overlay"><div class="coming-soon-text">Coming Soon</div></div>
   </div>
 
   <!-- 005 -->
   <div class="module-card card-white" style="cursor:default;">
-    <div class="corner-tl"></div><div class="corner-br"></div>
-    <div class="module-id">MODULE // 005</div>
+    <div class="module-id">MODULE 005</div>
     <div class="module-icon-row">
       <i class="fa-solid fa-file-export module-icon"></i>
-      <span class="module-status status-standby"><span class="status-dot"></span>STANDBY</span>
+      <span class="module-status status-standby"><span class="status-dot"></span>準備中</span>
     </div>
     <div class="module-title">レポート出力</div>
     <div class="module-desc">各モジュールのデータを統合してHTMLレポートを自動生成。経営報告・定例会議資料に。</div>
-    <div class="coming-soon-overlay"><div class="coming-soon-text">// COMING SOON //</div></div>
+    <div class="coming-soon-overlay"><div class="coming-soon-text">Coming Soon</div></div>
   </div>
 
 </main>
@@ -382,8 +380,8 @@
 <footer class="footer">
   <div class="footer-line"></div>
   <div class="footer-content">
-    <span>NEXUS OPS // PERSONAL EFFICIENCY SYSTEM</span>
-    <span>BUILD 2026.03 // v3.0.0 // COUNSELOR MODE</span>
+    <span>NEXUS OPS / Personal Efficiency System</span>
+    <span>v3.0.0 / 2026.04</span>
   </div>
 </footer>
 
@@ -392,16 +390,16 @@
   function updateTimestamp() {
     const now = new Date();
     const p = n => String(n).padStart(2,'0');
-    const s = `${now.getFullYear()}.${p(now.getMonth()+1)}.${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}:${p(now.getSeconds())} JST`;
-    document.getElementById('heroDate').textContent = s;
-    document.getElementById('tickerTime').textContent = s;
+    const s = `${now.getFullYear()}/${p(now.getMonth()+1)}/${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}`;
+    const el = document.getElementById('heroDate');
+    if (el) el.textContent = s;
   }
   updateTimestamp();
-  setInterval(updateTimestamp, 1000);
+  setInterval(updateTimestamp, 30000);
 
   async function downloadZip() {
     const btn = document.getElementById('dlBtn');
-    btn.textContent = '生成中...';
+    btn.innerHTML = '生成中...';
     btn.disabled = true;
     const base = location.origin + location.pathname.replace(/\/[^/]*$/, '/');
     const files = [
@@ -422,7 +420,7 @@
         folder.file(f, await res.text());
       } catch(e) {
         alert('エラー: ' + f + '\n' + e.message);
-        btn.textContent = '⬇ ZIP DL';
+        btn.innerHTML = '<i class="fa-solid fa-download"></i> ZIP';
         btn.disabled = false;
         return;
       }
@@ -433,8 +431,8 @@
     a.download = 'nexus-ops.zip';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 3000);
-    btn.textContent = '✓ 完了';
-    setTimeout(() => { btn.textContent = '⬇ ZIP DL'; btn.disabled = false; }, 3000);
+    btn.innerHTML = '完了';
+    setTimeout(() => { btn.innerHTML = '<i class="fa-solid fa-download"></i> ZIP'; btn.disabled = false; }, 3000);
   }
 
   async function loadStats() {
