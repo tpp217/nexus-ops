@@ -837,23 +837,11 @@ function buildFutureDirection(allData, { persistentStrengths, persistentChalleng
 }
 
 /* ─── API CRUD ─── */
+// 重複判定はサーバの upsert(onConflict: 'sheet_name,source_file') に一本化する。
+// 旧実装は limit=200 の先頭ページ内でしか重複を探さず、それを超える既存レコードを
+// 取りこぼして二重登録していた。常に POST し、サーバ側で挿入/更新を判定させる。
 async function saveMeetingRecord(record) {
   try {
-    const res0 = await fetch('tables/meeting_records?limit=200');
-    if (res0.ok) {
-      const d = await res0.json();
-      const existing = (d.data || []).find(r =>
-        r.sheet_name === record.sheet_name && r.source_file === record.source_file
-      );
-      if (existing) {
-        const r = await fetch(`tables/meeting_records/${existing.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(record)
-        });
-        return await r.json();
-      }
-    }
     const r = await fetch('tables/meeting_records', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1150,9 +1138,10 @@ function renderTimelineCard(record, index) {
 }
 
 /* ─── Helpers ─── */
+// HTMLエスケープの唯一の定義（meeting-analyzer.html 側の重複定義は撤去済み）。
+// null/undefined のみ空文字にし、0 や false はそのまま文字列化して表示する。
 function escHtml(s) {
-  if (!s) return '';
-  return String(s)
+  return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

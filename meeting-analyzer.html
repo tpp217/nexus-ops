@@ -1250,9 +1250,7 @@ async function extractExcelFromZip(zipFile, listEl) {
   return results;
 }
 
-function escHtml(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+// escHtml は js/analyzer.js に一本化（このファイルからは読込後にグローバル関数として参照する）
 function addFLI(c, cls, icon, text) {
   const d = document.createElement('div');
   d.className = `file-list-item ${cls}`;
@@ -1772,10 +1770,11 @@ async function triggerAiCard(btn, recordId) {
     resultEl.innerHTML = renderAiResult(result);
     btn.style.display = 'none';
   } catch (err) {
+    console.error('AI分析エラー:', err);
     const msg = err.message.includes('429') || err.message.includes('quota')
       ? '⚠️ 本日の無料枠(20回)を使い切りました。明日またお試しください。'
-      : `エラー: ${err.message}`;
-    resultEl.innerHTML = `<div class="ai-error">${msg}</div>`;
+      : 'AI分析に失敗しました。時間をおいて再度お試しください。';
+    resultEl.innerHTML = `<div class="ai-error">${escHtml(msg)}</div>`;
     btn.disabled = false;
   }
 }
@@ -1803,10 +1802,11 @@ async function triggerAiPerson(personName) {
     resultEl.innerHTML = renderAiPersonResult(result);
     if (btn) btn.style.display = 'none';
   } catch (err) {
+    console.error('AI総合分析エラー:', err);
     const msg = err.message.includes('429') || err.message.includes('quota')
       ? '⚠️ 本日の無料枠(20回)を使い切りました。明日またお試しください。'
-      : `エラー: ${err.message}`;
-    resultEl.innerHTML = `<div class="ai-error">${msg}</div>`;
+      : 'AI総合分析に失敗しました。時間をおいて再度お試しください。';
+    resultEl.innerHTML = `<div class="ai-error">${escHtml(msg)}</div>`;
     if (btn) btn.disabled = false;
   }
 }
@@ -1826,5 +1826,5 @@ async function triggerAiPerson(personName) {
   }
 })();
 </script>
-<script src="https://www.genspark.ai/sandbox_inspect.js"></script></body>
+</body>
 </html>
