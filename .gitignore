@@ -26,5 +26,8 @@ build/
 
 # ログ
 *.log
-node_modules/
-.env
+
+# DB / SQLite 生成物
+*.db
+*.sqlite
+*.sqlite3

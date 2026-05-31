@@ -13,7 +13,7 @@
  */
 import express from 'express';
 import cors from 'cors';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { createClient } from '@supabase/supabase-js';
 
 const app  = express();
@@ -34,7 +34,9 @@ app.use(cors({
     const ok = ALLOWED_ORIGINS.some(p =>
       typeof p === 'string' ? p === origin : p.test(origin)
     );
-    cb(ok ? null : new Error('CORS: 許可されていないオリジン'), ok);
+    // 許可外は Error を投げず、CORS ヘッダを付けないだけにする
+    // （Error を投げると無情報の 500 になり、エラーハンドラ未設定だと未処理例外的挙動になるため）
+    cb(null, ok);
   },
 }));
 app.use(express.json({ limit: '2mb' }));
@@ -112,12 +114,22 @@ app.get('/api/health', (req, res) => {
 
 /**
  * gsk を非同期で実行してJSONを返すPromise
+ *
+ * セキュリティ: シェルを介さず execFile で引数配列として渡すため、
+ * taskName / instructions にシェルメタ文字が含まれてもコマンドインジェクションは起きない。
  */
 function gskAnalyzeAsync(instructions, taskName, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
-    const escaped = instructions.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
-    const cmd = `gsk task super_agent --task_name "${taskName}" --query "以下をJSONで分析してください" --instructions '${escaped}' --output text 2>&1`;
-    exec(cmd, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+    const args = [
+      'task', 'super_agent',
+      '--task_name', taskName,
+      '--query', '以下をJSONで分析してください',
+      '--instructions', instructions,
+      '--output', 'text',
+    ];
+    execFile('gsk', args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+      // 旧実装の `2>&1`（stderr を stdout に合流）と同等にするため両者を結合して解析する
+      stdout = (stdout || '') + (stderr || '');
       if (err) return reject(new Error(err.message));
       // バランスの取れた { ... } を拾う（ネスト可能）
       const start = stdout.indexOf('{');
@@ -142,13 +154,35 @@ function gskAnalyzeAsync(instructions, taskName, timeoutMs = 120000) {
  */
 function gskGenerateText(instructions, taskName, timeoutMs = 90000) {
   return new Promise((resolve, reject) => {
-    const escaped = instructions.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
-    const cmd = `gsk task super_agent --task_name "${taskName}" --query "指示通りテキストを生成してください" --instructions '${escaped}' --output text 2>&1`;
-    exec(cmd, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+    const args = [
+      'task', 'super_agent',
+      '--task_name', taskName,
+      '--query', '指示通りテキストを生成してください',
+      '--instructions', instructions,
+      '--output', 'text',
+    ];
+    execFile('gsk', args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+      stdout = (stdout || '') + (stderr || '');
       if (err) return reject(new Error(err.message));
       resolve(stdout.trim());
     });
   });
+}
+
+/**
+ * クライアントへ返すエラー文言を生成する。
+ * gsk の生 stdout やスタックがそのまま漏れないよう汎用化しつつ、
+ * フロント側がレート制限を判定できるよう 429 / quota だけはトークンを保持する。
+ */
+function clientError(err) {
+  const raw = String(err && err.message || '');
+  if (/429|quota|rate.?limit/i.test(raw)) {
+    return 'AI分析に失敗しました（quota/429: 利用上限に達した可能性があります）';
+  }
+  if (/timeout|timed out|ETIMEDOUT/i.test(raw)) {
+    return 'AI分析がタイムアウトしました。時間をおいて再度お試しください。';
+  }
+  return 'AI分析に失敗しました。時間をおいて再度お試しください。';
 }
 
 /**
@@ -180,7 +214,7 @@ app.post('/api/analyze', async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error('gsk analyze error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: clientError(err) });
   }
 });
 
@@ -218,7 +252,7 @@ app.post('/api/analyze/person', async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error('gsk analyze/person error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: clientError(err) });
   }
 });
 
@@ -260,7 +294,7 @@ app.post('/api/highlight', async (req, res) => {
   } catch (err) {
     console.error('gsk highlight error:', err.message);
     // 失敗時は元の配列をそのまま返す（UIは崩れない）
-    res.status(200).json({ ok: false, items, error: err.message });
+    res.status(200).json({ ok: false, items, error: clientError(err) });
   }
 });
 
