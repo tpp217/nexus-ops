@@ -3,6 +3,7 @@
  * PUT (更新) / DELETE (削除) を処理
  */
 import { createClient } from '@supabase/supabase-js';
+import { evaluateAuth, sendBlock } from '../../_lib/auth-gate.js';
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -14,11 +15,19 @@ function getSupabase() {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: 'id が必要です' });
+
+  // 認証ゲート（既定は監視のみ・ブロックしない / AUTH_ENFORCE=on でブロック）
+  const auth = await evaluateAuth({
+    authHeader: req.headers.authorization,
+    method: req.method,
+    path: `/api/tables/meeting_records/${id}`,
+  });
+  if (!auth.allowed) return sendBlock(res, auth);
 
   try {
     const supabase = getSupabase();

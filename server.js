@@ -15,6 +15,7 @@ import express from 'express';
 import cors from 'cors';
 import { execFile } from 'child_process';
 import { createClient } from '@supabase/supabase-js';
+import { evaluateAuth, sendBlock } from './api/_lib/auth-gate.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3100;
@@ -40,6 +41,32 @@ app.use(cors({
   },
 }));
 app.use(express.json({ limit: '2mb' }));
+
+// ── 認証ゲート（監視モード） ──────────────────────
+// workspace-hub 発行の JWT を JWKS 検証する。
+// 既定（AUTH_ENFORCE 未設定 / off）は監視のみで、ブロックせず素通り（現挙動を変えない）。
+// AUTH_ENFORCE=on のときだけ 401/403 を返す。
+// /api/health は対象外（常に素通り）。
+async function authGate(req, res, next) {
+  try {
+    const result = await evaluateAuth({
+      authHeader: req.headers.authorization,
+      method: req.method,
+      path: req.path,
+    });
+    if (!result.allowed) return sendBlock(res, result);
+    // 検証済みクレームを後続で使えるよう載せておく（監視モードでは undefined のことが多い）
+    req.authClaims = result.claims || null;
+  } catch (e) {
+    // ゲート自体の予期せぬ失敗で本番を落とさない。監視モード相当で素通りさせる。
+    console.error('[auth-gate] middleware error:', e && e.message);
+  }
+  next();
+}
+// 機微なエンドポイントにのみ適用（/api/health は付けない）
+app.use('/tables', authGate);
+app.use('/api/analyze', authGate);
+app.use('/api/highlight', authGate);
 
 // ── Supabase クライアント ────────────────────────
 // シークレットはDopplerで注入: doppler run -- node server.js

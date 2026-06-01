@@ -7,6 +7,7 @@
  *   SUPABASE_URL / SUPABASE_SERVICE_KEY
  */
 import { createClient } from '@supabase/supabase-js';
+import { evaluateAuth, sendBlock } from '../_lib/auth-gate.js';
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -19,8 +20,16 @@ export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // 認証ゲート（既定は監視のみ・ブロックしない / AUTH_ENFORCE=on でブロック）
+  const auth = await evaluateAuth({
+    authHeader: req.headers.authorization,
+    method: req.method,
+    path: '/api/tables/meeting_records',
+  });
+  if (!auth.allowed) return sendBlock(res, auth);
 
   try {
     const supabase = getSupabase();
