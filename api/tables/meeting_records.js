@@ -36,12 +36,14 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const limit = parseInt(req.query.limit) || 300;
-      const { data, error } = await supabase
+      // total は limit に依存しない全件数を返す（count: 'exact'）。
+      // これがないと limit=1 の集計取得で total が常に 1 になりダッシュボードの件数が誤る。
+      const { data, error, count } = await supabase
         .from('meeting_records')
-        .select('*')
+        .select('*', { count: 'exact' })
         .limit(limit);
       if (error) throw error;
-      return res.json({ data, total: data.length });
+      return res.json({ data, total: count ?? data.length });
     }
 
     if (req.method === 'POST') {
