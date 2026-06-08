@@ -13,13 +13,14 @@
  * 環境変数:
  *   - JWKS_URL        JWKS エンドポイント（既定 https://auth.utinc.dev/.well-known/jwks.json）
  *   - AUTH_ENFORCE    "on" でブロック有効化。それ以外（未設定含む）は監視のみ
- *   - AUTH_SYSTEM_KEY 自アプリのシステムキー（既定 "nexus-ops"）。
+ *   - AUTH_SYSTEM_KEY 自アプリのシステムキー（既定 "nexus" = workspace-hub SYSTEM_CATALOG のキー）。
  *                     enforce 時、JWT の systems[] にこのキーが含まれるかを検証
  */
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 const DEFAULT_JWKS_URL = 'https://auth.utinc.dev/.well-known/jwks.json';
-const DEFAULT_SYSTEM_KEY = 'nexus-ops';
+// workspace-hub SYSTEM_CATALOG の 'nexus' と一致（AUTH_SYSTEM_KEY で上書き可）
+const DEFAULT_SYSTEM_KEY = 'nexus';
 
 /** enforce が有効か（"on" のときだけ true） */
 export function isEnforcing() {
