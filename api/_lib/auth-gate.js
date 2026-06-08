@@ -11,8 +11,9 @@
  *     401 / 403 でブロックする。
  *
  * 環境変数:
- *   - JWKS_URL        JWKS エンドポイント（既定 https://auth.utinc.dev/.well-known/jwks.json）
- *   - AUTH_ENFORCE    "on" でブロック有効化。それ以外（未設定含む）は監視のみ
+ *   - JWKS_URL             JWKS エンドポイント（既定 https://auth.utinc.dev/.well-known/jwks.json）
+ *   - AUTH_EXPECTED_ISSUER 期待する iss（既定 https://auth.utinc.dev）。署名に加え発行者を照合（なりすまし二重防御）
+ *   - AUTH_ENFORCE         "on" でブロック有効化。それ以外（未設定含む）は監視のみ
  *   - AUTH_SYSTEM_KEY 自アプリのシステムキー（既定 "nexus" = workspace-hub SYSTEM_CATALOG のキー）。
  *                     enforce 時、JWT の systems[] にこのキーが含まれるかを検証
  */
@@ -21,6 +22,13 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 const DEFAULT_JWKS_URL = 'https://auth.utinc.dev/.well-known/jwks.json';
 // workspace-hub SYSTEM_CATALOG の 'nexus' と一致（AUTH_SYSTEM_KEY で上書き可）
 const DEFAULT_SYSTEM_KEY = 'nexus';
+// workspace-hub が発行する JWT の iss は "https://auth.utinc.dev" 固定（署名時に強制）
+const DEFAULT_ISSUER = 'https://auth.utinc.dev';
+
+/** 期待する issuer（AUTH_EXPECTED_ISSUER で上書き可） */
+function expectedIssuer() {
+  return process.env.AUTH_EXPECTED_ISSUER || DEFAULT_ISSUER;
+}
 
 /** enforce が有効か（"on" のときだけ true） */
 export function isEnforcing() {
@@ -56,7 +64,7 @@ function extractBearer(authHeader) {
  */
 async function verifyToken(token) {
   try {
-    const { payload } = await jwtVerify(token, getJWKS());
+    const { payload } = await jwtVerify(token, getJWKS(), { issuer: expectedIssuer() });
     return {
       ok: true,
       claims: {
