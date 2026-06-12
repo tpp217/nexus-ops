@@ -26,6 +26,7 @@ export default async function handler(req, res) {
   // 認証ゲート（既定は監視のみ・ブロックしない / AUTH_ENFORCE=on でブロック）
   const auth = await evaluateAuth({
     authHeader: req.headers.authorization,
+    cookieHeader: req.headers.cookie,
     method: req.method,
     path: '/api/tables/meeting_records',
   });
