@@ -387,6 +387,7 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="js/auth-fetch.js"></script>
 <script>
   function updateTimestamp() {
     const now = new Date();
@@ -438,7 +439,7 @@
 
   async function loadStats() {
     try {
-      const res = await fetch('tables/meeting_records?limit=1');
+      const res = await authFetch('tables/meeting_records?limit=1');
       if (res.ok) {
         const d = await res.json();
         document.getElementById('statRecords').textContent  = d.total ?? 0;

@@ -1314,7 +1314,7 @@ async function runAiAnalysisForAll(records) {
       if (result.ok) {
         const id = record.id;
         if (id) {
-          await fetch(`tables/meeting_records/${id}`, {
+          await authFetch(`tables/meeting_records/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1812,6 +1812,7 @@ async function triggerAiPerson(personName) {
 }
 
 </script>
+<script src="js/auth-fetch.js"></script>
 <script src="js/analyzer.js?v=5"></script>
 <script src="js/pdf-export.js?v=3"></script>
 <script>
