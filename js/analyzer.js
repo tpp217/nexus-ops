@@ -842,7 +842,7 @@ function buildFutureDirection(allData, { persistentStrengths, persistentChalleng
 // 取りこぼして二重登録していた。常に POST し、サーバ側で挿入/更新を判定させる。
 async function saveMeetingRecord(record) {
   try {
-    const r = await fetch('tables/meeting_records', {
+    const r = await authFetch('tables/meeting_records', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(record)
@@ -853,7 +853,7 @@ async function saveMeetingRecord(record) {
 
 async function loadMeetingRecords() {
   try {
-    const r = await fetch('tables/meeting_records?limit=300');
+    const r = await authFetch('tables/meeting_records?limit=300');
     if (!r.ok) return [];
     const d = await r.json();
     return (d.data || []).sort((a, b) => {
@@ -873,7 +873,7 @@ async function loadMeetingRecords() {
 }
 
 async function deleteMeetingRecord(id) {
-  try { await fetch(`tables/meeting_records/${id}`, { method: 'DELETE' }); } catch {}
+  try { await authFetch(`tables/meeting_records/${id}`, { method: 'DELETE' }); } catch {}
 }
 
 /* ─── formatDate ─── */
