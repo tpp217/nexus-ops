@@ -264,6 +264,8 @@
     <span class="nav-link active">ダッシュボード</span>
   </div>
   <div class="nav-status">
+    <!-- テナント対応 identity（SSO ログイン時のみ /api/auth/me の値で描画） -->
+    <span id="ssoIdentity" class="sso-identity" hidden></span>
     <button onclick="downloadZip()" id="dlBtn" class="btn btn-sm">
       <i class="fa-solid fa-download"></i> ZIP
     </button>
@@ -388,6 +390,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="js/auth-fetch.js"></script>
+<script src="js/identity.js"></script>
 <script>
   function updateTimestamp() {
     const now = new Date();

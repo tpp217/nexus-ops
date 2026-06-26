@@ -72,8 +72,12 @@ function extractBearer(authHeader) {
 
 /**
  * JWT を検証してクレームを取り出す。
- * 成功: { ok:true, claims:{ tenant_id, level, capabilities, systems } }
+ * 成功: { ok:true, claims:{ tenant_id, level, capabilities, systems, sub, line_user_id,
+ *                          is_demo, name, tenant_name, department } }
  * 失敗: { ok:false, reason }
+ *
+ * is_demo / name / tenant_name / department は workspace-hub が additive 署名する
+ * 「表示ヒント」クレーム（認可境界ではない）。下流は読むだけ。未配布でも安全に undefined。
  */
 export async function verifyToken(token) {
   try {
@@ -86,6 +90,12 @@ export async function verifyToken(token) {
         capabilities: Array.isArray(payload.capabilities) ? payload.capabilities : [],
         systems:      Array.isArray(payload.systems) ? payload.systems : [],
         sub:          payload.sub ?? null,
+        line_user_id: typeof payload.line_user_id === 'string' ? payload.line_user_id : null,
+        // ── 表示ヒント（additive・未配布なら undefined） ──
+        is_demo:      typeof payload.is_demo === 'boolean' ? payload.is_demo : undefined,
+        name:         typeof payload.name === 'string' ? payload.name : undefined,
+        tenant_name:  typeof payload.tenant_name === 'string' ? payload.tenant_name : undefined,
+        department:   typeof payload.department === 'string' ? payload.department : undefined,
       },
     };
   } catch (e) {

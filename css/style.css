@@ -169,6 +169,29 @@ body > *:not(.bg-grid):not(.scan-overlay) { position: relative; z-index: auto; }
 
 .nav-status { display: flex; align-items: center; gap: 10px; }
 
+/* SSO テナント対応 identity（ナビ右側・/api/auth/me の値で描画） */
+.sso-identity {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+  margin-right: 4px;
+}
+.sso-id-tenant {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+.sso-id-sub {
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+@media (max-width: 768px) {
+  .sso-identity { display: none; } /* 狭幅では本人/テナント表示を畳む */
+}
+
 /* ═══════════════════════════════════════════
    6. Footer
 ═══════════════════════════════════════════ */
