@@ -16,7 +16,15 @@
 //   - name / tenant_name / department は未配布なら null（フロントはフォールバック表示）。
 //
 // 注意: 認可境界ではない（systems[] 判定はしない）。あくまで本人の表示用。
+//
+// 単体版（STANDALONE）について:
+//   - 単体版では wh JWT が存在しないため、本人クレームは取れない。
+//     ただしフロントの再ログイン/ログアウト アイコンが遷移先を切り替えられるよう、
+//     未認証でも 200 で { ok:true, standalone:true, authenticated:false } を返す
+//     （表示用フラグのみ・秘密値は含めない）。プラットフォーム版（既定）は従来どおり
+//     401／200 の挙動を一切変えない。
 import { verifyToken } from '../_lib/auth-gate.js';
+import { isStandalone } from '../_lib/app-mode.js';
 
 /** Cookie ヘッダから wh_token を取り出す（無ければ null）。 */
 function extractWhTokenCookie(cookieHeader) {
@@ -46,6 +54,22 @@ export default async function handler(req, res) {
   // ブラウザ/プロキシに本人情報をキャッシュさせない。
   res.setHeader('Cache-Control', 'no-store');
 
+  // 単体版: wh JWT を見ずに、表示用のモードフラグだけ返す（現状未整備の自前ログインを
+  // 前提とした暫定。氏名/テナント名は単体版自前ログイン実装時に埋める）。
+  if (isStandalone()) {
+    return res.status(200).json({
+      ok: true,
+      standalone: true,
+      authenticated: false,
+      is_demo: false,
+      name: null,
+      tenant_name: null,
+      department: null,
+      tenant_id: null,
+      line_user_id: null,
+    });
+  }
+
   const token =
     extractBearer(req.headers.authorization) ??
     extractWhTokenCookie(req.headers.cookie);
@@ -62,6 +86,8 @@ export default async function handler(req, res) {
   const c = result.claims;
   return res.status(200).json({
     ok: true,
+    standalone: false,
+    authenticated: true,
     is_demo: c.is_demo ?? false,
     name: c.name ?? null,
     tenant_name: c.tenant_name ?? null,

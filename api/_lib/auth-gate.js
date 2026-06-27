@@ -18,6 +18,7 @@
  *                     enforce 時、JWT の systems[] にこのキーが含まれるかを検証
  */
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { isStandalone } from './app-mode.js';
 
 const DEFAULT_JWKS_URL = 'https://auth.utinc.dev/.well-known/jwks.json';
 // workspace-hub SYSTEM_CATALOG の 'nexus' と一致（AUTH_SYSTEM_KEY で上書き可）
@@ -115,6 +116,15 @@ export async function verifyToken(token) {
  *   - allowed:false → 呼び出し側で status/body を返してブロック（enforce 時のみ発生）
  */
 export async function evaluateAuth({ authHeader, cookieHeader, method = '', path = '' } = {}) {
+  // ── 単体版（STANDALONE）: wh の SSO ゲートをスキップ ──
+  // 単体版では wh JWT が存在しない（自前ログインで完結する想定）ため、wh トークン検証は
+  // 行わず常に通す。AUTH_ENFORCE=on を併用しても自前 API が 401 にならない。
+  // 認可は単体版自前の仕組み（要実装）に委ねる。プラットフォーム版（既定）は従来どおり。
+  if (isStandalone()) {
+    console.info(`[auth-gate][standalone] ${method} ${path} skip wh gate`);
+    return { allowed: true };
+  }
+
   const enforce = isEnforcing();
   // ヘッダ優先・無ければ SSO ログイン済みブラウザの wh_token cookie（フロント変更不要で認証が通る）。
   const token = extractBearer(authHeader) ?? extractWhTokenCookie(cookieHeader);
@@ -190,6 +200,17 @@ const UTINC_TENANT_ID = '993aba82-bfa2-4fc8-ada9-928e2875120f';
  * @returns {{ ok:true, tenantId:string, fallback?:boolean } | { ok:false }}
  */
 export function resolveTenant(claims) {
+  // ── 単体版（STANDALONE）: 固定テナントに揃える ──
+  // 単体顧客＝1 テナント。wh JWT が無く tenant_id クレームが取れないため、env の
+  // STANDALONE_TENANT_ID を全 read/write/delete のスコープに使う（単一顧客で完結）。
+  // 値が UUID として妥当でなければ fail-closed（誤って全テナント横断しないため）。
+  if (isStandalone()) {
+    const sid = String(process.env.STANDALONE_TENANT_ID || '').trim();
+    if (sid) return { ok: true, tenantId: sid, standalone: true };
+    console.warn('[auth-gate][standalone] STANDALONE_TENANT_ID が未設定です（fail-closed）');
+    return { ok: false };
+  }
+
   const tid = claims && typeof claims.tenant_id === 'string' ? claims.tenant_id.trim() : '';
   if (tid) return { ok: true, tenantId: tid };
   // tenant_id が解決できない
