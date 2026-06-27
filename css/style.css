@@ -192,6 +192,26 @@ body > *:not(.bg-grid):not(.scan-overlay) { position: relative; z-index: auto; }
   .sso-identity { display: none; } /* 狭幅では本人/テナント表示を畳む */
 }
 
+/* 再ログイン / ログアウト アイコン（ナビ右側・アイコンのみ） */
+.auth-icons { display: inline-flex; align-items: center; gap: 4px; }
+.auth-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius, 6px);
+  color: var(--text-3);
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition: color .12s, border-color .12s, background .12s;
+}
+.auth-icon-btn:hover {
+  color: var(--blue);
+  border-color: var(--border-c);
+  background: var(--surface-2);
+}
+
 /* ═══════════════════════════════════════════
    6. Footer
 ═══════════════════════════════════════════ */

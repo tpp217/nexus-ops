@@ -992,6 +992,8 @@
       <span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;"></span>
       稼働中
     </span>
+    <!-- 再ログイン / ログアウト アイコン（auth-icons.js が描画・アイコンのみ） -->
+    <span id="authIcons" class="auth-icons" hidden></span>
   </div>
 </nav>
 
@@ -1816,6 +1818,7 @@ async function triggerAiPerson(personName) {
 </script>
 <script src="js/auth-fetch.js"></script>
 <script src="js/identity.js"></script>
+<script src="js/auth-icons.js"></script>
 <script src="js/analyzer.js?v=5"></script>
 <script src="js/pdf-export.js?v=3"></script>
 <script>

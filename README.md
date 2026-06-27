@@ -41,6 +41,20 @@ nexus-ops/
 - **PDF 生成**: [jsPDF](https://parall.ax/products/jspdf/) + [html2canvas](https://html2canvas.hertzen.com/)
 - **UI テーマ**: White × Neon Cyberpunk（カスタム CSS）
 
+## 動作モード（プラットフォーム版 / 単体販売版）
+
+env フラグ `STANDALONE` 1 本で 2 モードを住み分ける。**`STANDALONE` 未設定＝現状のプラットフォーム挙動を一切変えない**（完全後方互換）。
+
+| 観点 | プラットフォーム版（既定・`STANDALONE` 未設定） | 単体版（`STANDALONE=true`） |
+|---|---|---|
+| ログイン | workspace-hub の SSO（LINE 統一） | アプリ自前ログイン（wh SSO へ飛ばさない）※ **未整備＝要実装** |
+| 認証ゲート | wh JWT を JWKS 検証（監視 / enforce） | wh ゲートをスキップ（自前認証に委ねる） |
+| データ範囲 | wh の所属（tenant_id クレーム） | 単一顧客＝固定テナント `STANDALONE_TENANT_ID` |
+
+- 単体版では `api/_lib/auth-gate.js` の `evaluateAuth()` が wh JWT 検証をスキップし、`resolveTenant()` が `STANDALONE_TENANT_ID` を全データのスコープに使う（未設定だと fail-closed）。
+- **重要**: nexus の単体版「自前ログイン UI」は現状未整備（要実装）。現フラグ ON で有効なのは「ゲートスキップ＋テナント固定＋再ログイン/ログアウト アイコン」まで。実際の単体運用にはログイン画面の実装が別途必要。
+- 環境変数の詳細は `.env.example` を参照。
+
 ## ホスティング
 
 GitHub Pages 対応。`main` ブランチを Pages に設定するだけで公開可能。
