@@ -15,7 +15,7 @@ import express from 'express';
 import cors from 'cors';
 import { execFile } from 'child_process';
 import { createClient } from '@supabase/supabase-js';
-import { evaluateAuth, sendBlock } from './api/_lib/auth-gate.js';
+import { evaluateAuth, sendBlock, resolveTenant, tenantRequired } from './api/_lib/auth-gate.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3100;
@@ -51,6 +51,7 @@ async function authGate(req, res, next) {
   try {
     const result = await evaluateAuth({
       authHeader: req.headers.authorization,
+      cookieHeader: req.headers.cookie,
       method: req.method,
       path: req.path,
     });
@@ -62,6 +63,19 @@ async function authGate(req, res, next) {
     console.error('[auth-gate] middleware error:', e && e.message);
   }
   next();
+}
+
+// 永続業務データ用に tenant_id を解決する（authGate の後段で使う）。
+// 未解決は fail-closed（enforce 時 401／監視モードは utinc 既定にフォールバック）。
+// /tables/* は authGate 済みなので req.authClaims が載っている。
+function reqTenantId(req, res) {
+  const tenant = resolveTenant(req.authClaims);
+  if (!tenant.ok) {
+    const blk = tenantRequired();
+    res.status(blk.status).json(blk.body);
+    return null;
+  }
+  return tenant.tenantId;
 }
 // 機微なエンドポイントにのみ適用（/api/health は付けない）
 app.use('/tables', authGate);
@@ -82,28 +96,37 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ── tables/ REST API (Supabase) ─────────────────
 // NOTE: VercelのAPI Routesに移行予定。VMでも動作するよう残しておく。
 
+// すべて自テナントに絞る（クロステナント漏洩防止）。tenant_id は
+// reqTenantId が JWT クレームから解決（監視モードは utinc 既定にフォールバック）。
 app.get('/tables/meeting_records', async (req, res) => {
+  const tenantId = reqTenantId(req, res);
+  if (tenantId === null) return; // fail-closed（応答は reqTenantId 内で送出済み）
   try {
-    const { data, error } = await supabase.from('meeting_records').select('*');
+    const { data, error } = await supabase.from('meeting_records').select('*').eq('tenant_id', tenantId);
     if (error) throw error;
     res.json({ data, total: data.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/tables/meeting_records/:id', async (req, res) => {
+  const tenantId = reqTenantId(req, res);
+  if (tenantId === null) return;
   try {
-    const { data, error } = await supabase.from('meeting_records').select('*').eq('id', req.params.id).single();
+    const { data, error } = await supabase.from('meeting_records').select('*').eq('id', req.params.id).eq('tenant_id', tenantId).single();
     if (error) return res.status(404).json({ error: 'not found' });
     res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/tables/meeting_records', async (req, res) => {
+  const tenantId = reqTenantId(req, res);
+  if (tenantId === null) return;
   try {
-    const r = req.body;
+    // クライアント由来の tenant_id は信用せず、必ずサーバー側の解決値で上書き。
+    const r = { ...req.body, tenant_id: tenantId };
     const { data, error } = await supabase
       .from('meeting_records')
-      .upsert(r, { onConflict: 'sheet_name,source_file' })
+      .upsert(r, { onConflict: 'tenant_id,sheet_name,source_file' })
       .select()
       .single();
     if (error) throw error;
@@ -112,11 +135,17 @@ app.post('/tables/meeting_records', async (req, res) => {
 });
 
 app.put('/tables/meeting_records/:id', async (req, res) => {
+  const tenantId = reqTenantId(req, res);
+  if (tenantId === null) return;
   try {
+    // tenant_id の書き換え（他テナントへの移送）を防ぐ。
+    const patch = { ...req.body };
+    delete patch.tenant_id;
     const { data, error } = await supabase
       .from('meeting_records')
-      .update(req.body)
+      .update(patch)
       .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
       .select()
       .single();
     if (error) throw error;
@@ -125,8 +154,10 @@ app.put('/tables/meeting_records/:id', async (req, res) => {
 });
 
 app.delete('/tables/meeting_records/:id', async (req, res) => {
+  const tenantId = reqTenantId(req, res);
+  if (tenantId === null) return;
   try {
-    const { error } = await supabase.from('meeting_records').delete().eq('id', req.params.id);
+    const { error } = await supabase.from('meeting_records').delete().eq('id', req.params.id).eq('tenant_id', tenantId);
     if (error) throw error;
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
