@@ -3,7 +3,7 @@
  * PUT (更新) / DELETE (削除) を処理
  */
 import { createClient } from '@supabase/supabase-js';
-import { evaluateAuth, sendBlock } from '../../_lib/auth-gate.js';
+import { evaluateAuth, sendBlock, resolveTenant, tenantRequired } from '../../_lib/auth-gate.js';
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -30,6 +30,12 @@ export default async function handler(req, res) {
   });
   if (!auth.allowed) return sendBlock(res, auth);
 
+  // テナント解決（id 指定でも必ず自テナントに絞る＝別テナントの行を id 推測で
+  // 読み書き削除できないようにする）。未解決は fail-closed（監視モードは utinc 既定）。
+  const tenant = resolveTenant(auth.claims);
+  if (!tenant.ok) return sendBlock(res, tenantRequired());
+  const tenantId = tenant.tenantId;
+
   try {
     const supabase = getSupabase();
 
@@ -38,16 +44,21 @@ export default async function handler(req, res) {
         .from('meeting_records')
         .select('*')
         .eq('id', id)
+        .eq('tenant_id', tenantId)
         .single();
       if (error) return res.status(404).json({ error: 'not found' });
       return res.json(data);
     }
 
     if (req.method === 'PUT') {
+      // クライアントが tenant_id を書き換えて他テナントへ移送することを防ぐ。
+      const patch = { ...req.body };
+      delete patch.tenant_id;
       const { data, error } = await supabase
         .from('meeting_records')
-        .update(req.body)
+        .update(patch)
         .eq('id', id)
+        .eq('tenant_id', tenantId)
         .select()
         .single();
       if (error) throw error;
@@ -58,7 +69,8 @@ export default async function handler(req, res) {
       const { error } = await supabase
         .from('meeting_records')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
       if (error) throw error;
       return res.json({ ok: true });
     }

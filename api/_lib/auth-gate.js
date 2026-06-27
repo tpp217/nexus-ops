@@ -164,3 +164,41 @@ export async function evaluateAuth({ authHeader, cookieHeader, method = '', path
 export function sendBlock(res, evalResult) {
   res.status(evalResult.status || 401).json(evalResult.body || { error: 'unauthorized' });
 }
+
+// ── テナント分離（永続業務データのスコープ解決） ───────────────────
+//
+// nexus は service-role で Supabase を直叩きするため、テナント分離の主たる防御は
+// 「アプリ層で全クエリに tenant_id を必ず付与する」こと（RLS は多層防御の保険）。
+// 各 api 関数は evaluateAuth の結果からこのヘルパで tenant_id を解決し、永続業務
+// テーブル（meeting_records 等）の read/write/delete を必ずその tenant に絞る。
+
+// 既定テナント = utinc（実データは全て utinc）。監視モードで token 未解決のとき、
+// 現挙動（utinc データがそのまま見える）を壊さないためのフォールバックに使う。
+const UTINC_TENANT_ID = '993aba82-bfa2-4fc8-ada9-928e2875120f';
+
+/**
+ * 永続業務データ用に tenant_id を解決する。
+ *
+ * - 検証済みクレームに tenant_id があればそれを使う（最優先・常に正）。
+ * - tenant_id が解決できないとき:
+ *     - enforce 時 → fail-closed（{ ok:false }）。呼び出し側は 401 で弾く。
+ *     - 監視モード時 → utinc 既定にフォールバック（{ ok:true, tenantId, fallback:true }）。
+ *       実データは全て utinc のため、現挙動（utinc が見える）を壊さない＝非破壊。
+ *       enforce 点灯（フロント SSO 統合後）で自動的に厳密化される。
+ *
+ * @param {object|null|undefined} claims  evaluateAuth が返す claims（無ければ null）
+ * @returns {{ ok:true, tenantId:string, fallback?:boolean } | { ok:false }}
+ */
+export function resolveTenant(claims) {
+  const tid = claims && typeof claims.tenant_id === 'string' ? claims.tenant_id.trim() : '';
+  if (tid) return { ok: true, tenantId: tid };
+  // tenant_id が解決できない
+  if (isEnforcing()) return { ok: false };
+  // 監視モード: utinc 既定で素通り（現挙動維持）
+  return { ok: true, tenantId: UTINC_TENANT_ID, fallback: true };
+}
+
+/** tenant 未解決時の 401 応答（呼び出し側で sendBlock 経由で使う形に揃える） */
+export function tenantRequired() {
+  return { allowed: false, status: 401, body: { error: 'テナントが解決できません（認証が必要です）' } };
+}

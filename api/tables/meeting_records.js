@@ -7,7 +7,7 @@
  *   SUPABASE_URL / SUPABASE_SERVICE_KEY
  */
 import { createClient } from '@supabase/supabase-js';
-import { evaluateAuth, sendBlock } from '../_lib/auth-gate.js';
+import { evaluateAuth, sendBlock, resolveTenant, tenantRequired } from '../_lib/auth-gate.js';
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -32,6 +32,12 @@ export default async function handler(req, res) {
   });
   if (!auth.allowed) return sendBlock(res, auth);
 
+  // テナント解決（永続業務データは必ず tenant_id でスコープする＝主たる防御）。
+  // 未解決は fail-closed（enforce 時 401／監視モードは utinc 既定にフォールバック）。
+  const tenant = resolveTenant(auth.claims);
+  if (!tenant.ok) return sendBlock(res, tenantRequired());
+  const tenantId = tenant.tenantId;
+
   try {
     const supabase = getSupabase();
 
@@ -39,19 +45,22 @@ export default async function handler(req, res) {
       const limit = parseInt(req.query.limit) || 300;
       // total は limit に依存しない全件数を返す（count: 'exact'）。
       // これがないと limit=1 の集計取得で total が常に 1 になりダッシュボードの件数が誤る。
+      // 自テナントの行のみ（クロステナント漏洩防止）。
       const { data, error, count } = await supabase
         .from('meeting_records')
         .select('*', { count: 'exact' })
+        .eq('tenant_id', tenantId)
         .limit(limit);
       if (error) throw error;
       return res.json({ data, total: count ?? data.length });
     }
 
     if (req.method === 'POST') {
-      const r = req.body;
+      // クライアント由来の tenant_id は信用せず、必ずサーバー側の解決値で上書き。
+      const r = { ...req.body, tenant_id: tenantId };
       const { data, error } = await supabase
         .from('meeting_records')
-        .upsert(r, { onConflict: 'sheet_name,source_file' })
+        .upsert(r, { onConflict: 'tenant_id,sheet_name,source_file' })
         .select()
         .single();
       if (error) throw error;
