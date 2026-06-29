@@ -4,7 +4,8 @@
     "silent": true
   },
   "rewrites": [
-    { "source": "/tables/:path*", "destination": "/api/tables/:path*" }
+    { "source": "/tables/:path*", "destination": "/api/tables/:path*" },
+    { "source": "/login", "destination": "/login.html" }
   ],
   "headers": [
     {

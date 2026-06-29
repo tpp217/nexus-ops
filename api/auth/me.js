@@ -18,13 +18,15 @@
 // 注意: 認可境界ではない（systems[] 判定はしない）。あくまで本人の表示用。
 //
 // 単体版（STANDALONE）について:
-//   - 単体版では wh JWT が存在しないため、本人クレームは取れない。
-//     ただしフロントの再ログイン/ログアウト アイコンが遷移先を切り替えられるよう、
-//     未認証でも 200 で { ok:true, standalone:true, authenticated:false } を返す
-//     （表示用フラグのみ・秘密値は含めない）。プラットフォーム版（既定）は従来どおり
-//     401／200 の挙動を一切変えない。
+//   - 単体版では wh JWT が存在しないため、自前ローカルログインの nexus_session を正本にする。
+//     有効な nexus_session が無ければ 401（standalone:true を additive に載せる）。
+//     フロントは standalone:true を見て /api/auth/login（SSO）ではなく /login（自前）へ誘導する。
+//   - 有効ならログイン済みとして 200。identity（テナント名/部署）は単体版では持たないため
+//     空（name は session の email を控えめに使う）。
+//   - プラットフォーム版（既定）は従来どおり 401／200 の挙動を一切変えない。
 import { verifyToken } from '../_lib/auth-gate.js';
 import { isStandalone } from '../_lib/app-mode.js';
+import { verifySession, SESSION_COOKIE, parseCookies } from '../_lib/session.js';
 
 /** Cookie ヘッダから wh_token を取り出す（無ければ null）。 */
 function extractWhTokenCookie(cookieHeader) {
@@ -54,15 +56,20 @@ export default async function handler(req, res) {
   // ブラウザ/プロキシに本人情報をキャッシュさせない。
   res.setHeader('Cache-Control', 'no-store');
 
-  // 単体版: wh JWT を見ずに、表示用のモードフラグだけ返す（現状未整備の自前ログインを
-  // 前提とした暫定。氏名/テナント名は単体版自前ログイン実装時に埋める）。
+  // 単体版: wh JWT を見ずに、自前ローカルログインの nexus_session を正本にする。
+  //   - 無効 / 未ログイン → 401（standalone:true）。フロントは /login へ誘導する。
+  //   - 有効 → 200。氏名は session の email を控えめに使う（テナント名/部署は単体版では持たない）。
   if (isStandalone()) {
+    const session = verifySession(parseCookies(req)[SESSION_COOKIE]);
+    if (!session) {
+      return res.status(401).json({ ok: false, standalone: true, authenticated: false });
+    }
     return res.status(200).json({
       ok: true,
       standalone: true,
-      authenticated: false,
+      authenticated: true,
       is_demo: false,
-      name: null,
+      name: (session && session.name) || null,
       tenant_name: null,
       department: null,
       tenant_id: null,

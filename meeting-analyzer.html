@@ -15,6 +15,31 @@
       document.documentElement.classList.add('is-embedded');
     }
   </script>
+  <script>
+    // ── 初期認証ゲート（モード別の未認証誘導） ──
+    //   index.html と同一ロジック。単体版（STANDALONE）のときだけ、未認証で /login へ誘導する。
+    //   このページは実ツール（議事録分析）なので、直リンク着地時も単体版では login を経由させる。
+    //   プラットフォーム版（standalone 未設定）は従来どおり＝**自動誘導しない**（挙動不変）。
+    (function () {
+      window.__NEXUS_STANDALONE__ = false;
+      fetch('/api/auth/me', { credentials: 'same-origin', headers: { accept: 'application/json' } })
+        .then(function (r) {
+          return r.json().then(
+            function (j) { return { ok: r.ok, body: j }; },
+            function () { return { ok: r.ok, body: null }; }
+          );
+        })
+        .then(function (resp) {
+          var me = resp && resp.body;
+          var standalone = !!(me && me.standalone);
+          window.__NEXUS_STANDALONE__ = standalone;
+          if (!resp.ok && standalone) {
+            location.replace('/login');
+          }
+        })
+        .catch(function () { /* best-effort: 失敗時は誘導しない */ });
+    })();
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>

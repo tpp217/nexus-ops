@@ -19,6 +19,7 @@
  */
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { isStandalone } from './app-mode.js';
+import { verifySession, extractCookie, SESSION_COOKIE } from './session.js';
 
 const DEFAULT_JWKS_URL = 'https://auth.utinc.dev/.well-known/jwks.json';
 // workspace-hub SYSTEM_CATALOG の 'nexus' と一致（AUTH_SYSTEM_KEY で上書き可）
@@ -116,12 +117,22 @@ export async function verifyToken(token) {
  *   - allowed:false → 呼び出し側で status/body を返してブロック（enforce 時のみ発生）
  */
 export async function evaluateAuth({ authHeader, cookieHeader, method = '', path = '' } = {}) {
-  // ── 単体版（STANDALONE）: wh の SSO ゲートをスキップ ──
-  // 単体版では wh JWT が存在しない（自前ログインで完結する想定）ため、wh トークン検証は
-  // 行わず常に通す。AUTH_ENFORCE=on を併用しても自前 API が 401 にならない。
-  // 認可は単体版自前の仕組み（要実装）に委ねる。プラットフォーム版（既定）は従来どおり。
+  // ── 単体版（STANDALONE）: wh SSO の代わりに自前ローカルセッションを必須にする ──
+  // 単体版では wh JWT が存在しない（自前ログインで完結する）ため、wh JWT 監視ゲートは使わず、
+  // ローカルログイン（/api/auth/standalone-login）が発行する nexus_session（HMAC cookie）を
+  // 必須にしてアクセスを塞ぐ。
+  //   - nexus_session が有効 → 通す（allowed:true）。
+  //   - 無い / 失効 / 改竄 → 401 でブロック（フロントは 401 を見て /login へ誘導）。
+  // 認可（本人確認）はローカルログイン、テナント分離は resolveTenant の固定テナント
+  // （STANDALONE_TENANT_ID）に委ねる。
+  // ※プラットフォーム版（STANDALONE 未設定）はこの分岐に入らず従来どおり＝挙動不変。
   if (isStandalone()) {
-    console.info(`[auth-gate][standalone] ${method} ${path} skip wh gate`);
+    const tag = `[auth-gate][standalone] ${method} ${path}`;
+    const session = verifySession(extractCookie(cookieHeader, SESSION_COOKIE));
+    if (!session) {
+      console.warn(`${tag} no_local_session`);
+      return { allowed: false, status: 401, body: { error: 'ログインが必要です' } };
+    }
     return { allowed: true };
   }
 
