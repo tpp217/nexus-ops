@@ -15,6 +15,36 @@
       document.documentElement.classList.add('is-embedded');
     }
   </script>
+  <script>
+    // ── 初期認証ゲート（モード別の未認証誘導） ──
+    //   /api/auth/me を1回叩き、モード（standalone）を判定してグローバルに保持する。
+    //   単体版（STANDALONE）のときだけ、未認証（!ok）で /login へ自動誘導する。
+    //   プラットフォーム版（standalone 未設定）は従来どおり＝**自動誘導しない**（挙動不変）。
+    //     - 監視モードの平常画面表示／identity.js・auth-icons.js の描画はそのまま。
+    //     - enforce 点灯時の 401→login 誘導は従来どおり auth-fetch.js（authFetch）が担う。
+    //   失敗（ネットワーク等）時も誘導しない（best-effort）。
+    (function () {
+      window.__NEXUS_STANDALONE__ = false;
+      fetch('/api/auth/me', { credentials: 'same-origin', headers: { accept: 'application/json' } })
+        .then(function (r) {
+          return r.json().then(
+            function (j) { return { ok: r.ok, body: j }; },
+            function () { return { ok: r.ok, body: null }; }
+          );
+        })
+        .then(function (resp) {
+          var me = resp && resp.body;
+          var standalone = !!(me && me.standalone);
+          window.__NEXUS_STANDALONE__ = standalone;
+          // 単体版のみ：未認証は自前ログイン /login へ誘導する。
+          // プラットフォーム版は誘導しない（現挙動を一切変えない）。
+          if (!resp.ok && standalone) {
+            location.replace('/login');
+          }
+        })
+        .catch(function () { /* best-effort: 失敗時は誘導しない */ });
+    })();
+  </script>
   <style>
     /* ===== HERO ===== */
     .hero-header {

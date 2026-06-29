@@ -5,9 +5,10 @@
 //     再ログイン＝循環矢印（↻） / ログアウト＝退出矢印（⇥）。
 //   - 遷移先をモードで切替（/api/auth/me の standalone フラグを読む）:
 //       再ログイン: プラットフォーム版 → /api/auth/login（wh SSO 入口）
-//                   単体版         → /api/auth/login（現状は 501 を返す＝単体版ログイン要実装。
-//                                     実装後はこの遷移先のまま単体版ログイン画面へ差し替わる）
-//       ログアウト: 両モードとも → /api/auth/logout（wh_token cookie を失効しトップへ）
+//                   単体版         → /login（自前ローカルログイン画面）
+//                                     ※ /api/auth/login も単体版では /login へ 302 するため等価だが、
+//                                       余計な往復を避けて直接 /login を指す。
+//       ログアウト: 両モードとも → /api/auth/logout（cookie 失効。単体版は /login・platform は / へ）
 //
 // 後方互換:
 //   - nexus は静的サイト。マウント先 #authIcons が無ければ何もしない（no-op）。
@@ -31,11 +32,12 @@
     '<line x1="21" y1="12" x2="9" y2="12"></line>' +
     '</svg>';
 
-  function render(host /*, standalone */) {
-    // 遷移先は両モードとも同一エンドポイント（login.js / logout.js 側でモード分岐）。
-    // standalone は将来の出し分け用に取得しているが、現状の遷移先は共通。
+  function render(host, standalone) {
+    // 再ログイン先のみモードで出し分ける（ログアウトは login.js / logout.js 側でモード分岐）。
+    //   単体版: /login（自前ログイン画面）／プラットフォーム版: /api/auth/login（wh SSO 入口）。
+    var reloginHref = standalone ? '/login' : '/api/auth/login';
     var html =
-      '<a class="auth-icon-btn" href="/api/auth/login" title="再ログイン" aria-label="再ログイン">' +
+      '<a class="auth-icon-btn" href="' + reloginHref + '" title="再ログイン" aria-label="再ログイン">' +
         SVG_RELOGIN +
       '</a>' +
       '<a class="auth-icon-btn" href="/api/auth/logout" title="ログアウト" aria-label="ログアウト">' +
