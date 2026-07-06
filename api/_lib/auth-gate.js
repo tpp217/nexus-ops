@@ -14,6 +14,9 @@
  *   - JWKS_URL             JWKS エンドポイント（既定 https://auth.utinc.dev/.well-known/jwks.json）
  *   - AUTH_EXPECTED_ISSUER 期待する iss（既定 https://auth.utinc.dev）。署名に加え発行者を照合（なりすまし二重防御）
  *   - AUTH_ENFORCE         "on" でブロック有効化。それ以外（未設定含む）は監視のみ
+ *   - CAP_ENFORCE          "on" で capabilities（操作権限）不足を 403 でブロック。
+ *                          それ以外（未設定含む）は [cap-monitor] ログのみ（監視モード）。
+ *                          書き込み系（GET/HEAD/OPTIONS 以外）に「<システムキー>.write」を要求する
  *   - AUTH_SYSTEM_KEY 自アプリのシステムキー（既定 "nexus" = workspace-hub SYSTEM_CATALOG のキー）。
  *                     enforce 時、JWT の systems[] にこのキーが含まれるかを検証
  */
@@ -40,6 +43,56 @@ export function isEnforcing() {
 /** 自アプリのシステムキー */
 function systemKey() {
   return process.env.AUTH_SYSTEM_KEY || DEFAULT_SYSTEM_KEY;
+}
+
+/** capability enforce が有効か（CAP_ENFORCE=on のときだけ true。それ以外は監視のみ） */
+function isCapEnforcing() {
+  return String(process.env.CAP_ENFORCE || '').toLowerCase() === 'on';
+}
+
+/** 書き込み系メソッドか（GET/HEAD/OPTIONS 以外はすべて書き込み扱い） */
+function isWriteMethod(method) {
+  const m = String(method || '').toUpperCase();
+  return m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS';
+}
+
+/**
+ * JWT の capabilities claim（string 配列）による操作ガード。
+ *
+ * - 書き込み系リクエスト（GET/HEAD/OPTIONS 以外）には「<システムキー>.write」
+ *   （既定: nexus.write）を要求する。
+ * - requiredCaps で追加の capability を要求できる（将来の特権操作用。現状は未使用）。
+ * - 挙動は CAP_ENFORCE で二段階:
+ *     CAP_ENFORCE=on → 不足時に 403（日本語エラー）でブロック
+ *     それ以外（未設定含む）→ ブロックせず [cap-monitor] ログのみ（点灯前の影響調査用）
+ * - 検証済み claims が無いリクエスト（トークン無しで監視モード素通り等）はここに来ない
+ *   （誰の操作か判定できないため。evaluateAuth 側で return 済み）。
+ */
+function evaluateCapabilities({ claims, method = '', path = '', requiredCaps = [] } = {}) {
+  const required = [];
+  if (isWriteMethod(method)) required.push(`${systemKey()}.write`);
+  for (const c of requiredCaps) {
+    if (c && !required.includes(c)) required.push(c);
+  }
+  if (required.length === 0) return { allowed: true }; // 読み取り系は capability 不要
+
+  const owned = Array.isArray(claims && claims.capabilities) ? claims.capabilities : [];
+  const missing = required.filter((c) => !owned.includes(c));
+  if (missing.length === 0) return { allowed: true };
+
+  // 監視ログ（enforce の有無に関わらず必ず記録する）
+  const user = (claims && (claims.line_user_id || claims.sub)) || 'unknown';
+  for (const c of missing) {
+    console.warn(`[cap-monitor] missing=${c} path=${path} user=${user}`);
+  }
+  if (isCapEnforcing()) {
+    return {
+      allowed: false,
+      status: 403,
+      body: { error: `この操作の権限（${missing[0]}）がありません。` },
+    };
+  }
+  return { allowed: true }; // 監視モード: 記録のみで素通り
 }
 
 // JWKS は遅延生成してプロセス内でキャッシュ（jose が内部で鍵をキャッシュ／更新する）
@@ -110,13 +163,15 @@ export async function verifyToken(token) {
  *
  * @param {object} args
  * @param {string} args.authHeader  Authorization ヘッダ値
- * @param {string} args.method      HTTP メソッド（ログ用）
+ * @param {string} args.method      HTTP メソッド（ログ用＋capability の write 判定に使用）
  * @param {string} args.path        パス（ログ用）
+ * @param {string[]} [args.requiredCaps] 追加で要求する capability（将来の特権操作用）
  * @returns {Promise<{ allowed:boolean, status?:number, body?:object, claims?:object }>}
  *   - allowed:true  → 通す（監視モードでは常にこちら。enforce 時も検証成功ならこちら）
- *   - allowed:false → 呼び出し側で status/body を返してブロック（enforce 時のみ発生）
+ *   - allowed:false → 呼び出し側で status/body を返してブロック（AUTH_ENFORCE=on または
+ *                     CAP_ENFORCE=on で capability 不足のときのみ発生）
  */
-export async function evaluateAuth({ authHeader, cookieHeader, method = '', path = '' } = {}) {
+export async function evaluateAuth({ authHeader, cookieHeader, method = '', path = '', requiredCaps = [] } = {}) {
   // ── 単体版（STANDALONE）: wh SSO の代わりに自前ローカルセッションを必須にする ──
   // 単体版では wh JWT が存在しない（自前ログインで完結する）ため、wh JWT 監視ゲートは使わず、
   // ローカルログイン（/api/auth/standalone-login）が発行する nexus_session（HMAC cookie）を
@@ -170,11 +225,17 @@ export async function evaluateAuth({ authHeader, cookieHeader, method = '', path
     if (enforce) {
       return { allowed: false, status: 403, body: { error: 'このシステムへのアクセス権がありません' }, claims };
     }
-    // 監視モード: 記録だけして素通り
-    return { allowed: true, claims };
+    // 監視モード: 記録だけして素通り（capabilities の監視判定は下で続行する）
+  } else {
+    console.info(`${tag} ok tenant=${claims.tenant_id} level=${claims.level}`);
   }
 
-  console.info(`${tag} ok tenant=${claims.tenant_id} level=${claims.level}`);
+  // ── capability（操作権限）ゲート ─────────────────────────────
+  // 検証済み claims がある場合のみ判定する。トークン無し／検証失敗の素通り（監視モード）は
+  // 上で return 済みのためここには来ない（誰の操作か判定できず、既存の監視ログに任せる）。
+  const cap = evaluateCapabilities({ claims, method, path, requiredCaps });
+  if (!cap.allowed) return { ...cap, claims };
+
   return { allowed: true, claims };
 }
 
