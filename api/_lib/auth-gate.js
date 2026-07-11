@@ -128,11 +128,14 @@ function extractBearer(authHeader) {
 /**
  * JWT を検証してクレームを取り出す。
  * 成功: { ok:true, claims:{ tenant_id, level, capabilities, systems, sub, line_user_id,
- *                          is_demo, name, tenant_name, department } }
+ *                          is_demo, name, tenant_name, department, department_id } }
  * 失敗: { ok:false, reason }
  *
- * is_demo / name / tenant_name / department は workspace-hub が additive 署名する
- * 「表示ヒント」クレーム（認可境界ではない）。下流は読むだけ。未配布でも安全に undefined。
+ * is_demo / name / tenant_name / department / department_id は workspace-hub が additive
+ * 署名する「表示ヒント」クレーム（認可境界ではない）。下流は読むだけ。未配布でも安全に undefined。
+ * department_id（UUID・選択部署 or home）は将来の部署次元スコープ用に受信のみ行う。
+ * 現状 nexus の永続業務データ（meeting_records 等）には department_id 列が無いため、
+ * フィルタには使わない（受信・whoami 返却に留める）。
  */
 export async function verifyToken(token) {
   try {
@@ -147,10 +150,12 @@ export async function verifyToken(token) {
         sub:          payload.sub ?? null,
         line_user_id: typeof payload.line_user_id === 'string' ? payload.line_user_id : null,
         // ── 表示ヒント（additive・未配布なら undefined） ──
-        is_demo:      typeof payload.is_demo === 'boolean' ? payload.is_demo : undefined,
-        name:         typeof payload.name === 'string' ? payload.name : undefined,
-        tenant_name:  typeof payload.tenant_name === 'string' ? payload.tenant_name : undefined,
-        department:   typeof payload.department === 'string' ? payload.department : undefined,
+        is_demo:       typeof payload.is_demo === 'boolean' ? payload.is_demo : undefined,
+        name:          typeof payload.name === 'string' ? payload.name : undefined,
+        tenant_name:   typeof payload.tenant_name === 'string' ? payload.tenant_name : undefined,
+        department:    typeof payload.department === 'string' ? payload.department : undefined,
+        // department_id（UUID・選択部署 or home）: 受信のみ。部署次元が無いため現状フィルタ非使用。
+        department_id: typeof payload.department_id === 'string' ? payload.department_id : undefined,
       },
     };
   } catch (e) {

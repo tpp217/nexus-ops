@@ -11,9 +11,11 @@
 //     ヘッダ表示は enforce 点灯を待たずに機能する。
 //
 // 返却（200）:
-//   { ok:true, is_demo, name, tenant_name, department, tenant_id, line_user_id }
+//   { ok:true, is_demo, name, tenant_name, department, department_id, tenant_id, line_user_id }
 //   - is_demo は未配布クレームのとき false 既定（実テナント扱い＝安全側）。
-//   - name / tenant_name / department は未配布なら null（フロントはフォールバック表示）。
+//   - name / tenant_name / department / department_id は未配布なら null（フロントはフォールバック表示）。
+//   - department_id（UUID・選択部署 or home）は将来の部署次元用に返すだけ。現状フロントは
+//     部署「名」（department）のみ表示に使い、department_id はフィルタに使わない。
 //
 // 注意: 認可境界ではない（systems[] 判定はしない）。あくまで本人の表示用。
 //
@@ -72,6 +74,7 @@ export default async function handler(req, res) {
       name: (session && session.name) || null,
       tenant_name: null,
       department: null,
+      department_id: null,
       tenant_id: null,
       line_user_id: null,
     });
@@ -99,6 +102,7 @@ export default async function handler(req, res) {
     name: c.name ?? null,
     tenant_name: c.tenant_name ?? null,
     department: c.department ?? null,
+    department_id: c.department_id ?? null,
     tenant_id: c.tenant_id ?? null,
     line_user_id: c.line_user_id ?? null,
   });
