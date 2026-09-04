@@ -37,17 +37,34 @@
     } catch (_) { /* 通知が出せなくても本処理は止めない */ }
   }
 
+  // 401 → SSO 再ログインの多重リダイレクト防止（このページ読み込み内で1回だけ）。
+  // 並列 fetch が同時に 401 になると、1本目が印を付けて再ログインへ向かう最中に
+  // 2本目が「試行済み」と誤判定してランチャーへ飛ばす競合があった（時々 workspace に
+  // 戻される実害・closing-automation #31 と同件）。最初の1本だけがリダイレクトを担当する。
+  let authRedirecting = false;
+
+  // 「再認証を試みた」印を有効とみなす時間。印はセッション内に残り続けるため、
+  // これより古い印は無効（＝wh_token の次の15分失効では改めて無音再ログインを試みる）。
+  // 本物の 401 ループ（未契約等）は数秒内に再発するため、この窓でも従来どおり止まる。
+  const SSO_ATTEMPT_WINDOW_MS = 60 * 1000;
+
   window.authFetch = async function (path, opts) {
     const res = await fetch(path, Object.assign({ credentials: 'same-origin' }, opts || {}));
     if (res.status === 401) {
-      let attempted = false;
-      try { attempted = !!sessionStorage.getItem('wh_sso_attempt'); } catch {}
+      if (authRedirecting) {
+        throw new Error('再ログイン処理中です');
+      }
+      let attemptedAt = 0;
+      try { attemptedAt = Number(sessionStorage.getItem('wh_sso_attempt')) || 0; } catch {}
+      const attempted = attemptedAt > 0 && Date.now() - attemptedAt < SSO_ATTEMPT_WINDOW_MS;
       if (!attempted) {
-        try { sessionStorage.setItem('wh_sso_attempt', '1'); } catch {}
+        try { sessionStorage.setItem('wh_sso_attempt', String(Date.now())); } catch {}
+        authRedirecting = true;
         window.location.href = '/api/auth/login';
       } else {
         // SSO 再ログインを試みても 401 のまま。行き止まりにせず、案内を出して
         // ランチャーへ誘導する（AUTH_ENFORCE 点灯対応）。
+        authRedirecting = true;
         showAuthNotice('ログインが必要です。ランチャーへ移動します…');
         setTimeout(function () { window.location.href = 'https://auth.utinc.dev/launcher'; }, 1500);
       }
