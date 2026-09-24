@@ -50,6 +50,11 @@ export default async function handler(req, res) {
   const systemKey = (process.env.AUTH_SYSTEM_KEY || 'nexus').trim();
 
   try {
+    // 実行開始時刻はロスター取得より前に取る（後から始まった実行ほど大きい値になるように）。
+    // synced_at は DB トリガ（ops: member_directory_keep_latest_synced_at）で後退しないため、
+    // 同期が重なっても古い実行が新しい実行の印を消して現役メンバーを無効化することはない。
+    const now = new Date().toISOString();
+
     // --- ロスターをプル ---
     const rosterRes = await fetch(
       `https://auth.utinc.dev/api/roster?tenant_id=${encodeURIComponent(tenantId)}&system_key=${encodeURIComponent(systemKey)}`,
@@ -65,7 +70,6 @@ export default async function handler(req, res) {
 
     // --- service_role(REST) で同期。先に upsert、成功後に今回触れなかった人だけ active=false ---
     // （先に全員無効化すると upsert 失敗時に全員が無効のまま残るため順序を逆にする）
-    const now = new Date().toISOString();
     if (members.length) {
       const rows = members.map((m) => ({
         system_key: systemKey,
