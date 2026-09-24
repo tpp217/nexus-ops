@@ -23,6 +23,7 @@
 //   anon キーが漏れても RLS と Supabase 側のレート制限で守られる（公開可キーの前提どおり）。
 import { issueSession, setCookie, SESSION_COOKIE } from '../_lib/session.js';
 import { isStandalone } from '../_lib/app-mode.js';
+import { isStandaloneMember, standaloneAccessTenantId } from '../_lib/standalone-access.js';
 
 // SUPABASE_ANON_KEY を優先し、無ければ SUPABASE_PUBLISHABLE_KEY を使う（新旧キー形式の両対応）。
 // いずれも公開可キー。service_role はここでは使わない（本人確認は Supabase に委ねる）。
@@ -105,10 +106,20 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'ログインに失敗しました（ユーザー不明）' });
   }
 
+  // 入室許可: app_metadata.standalone_tenant_id が STANDALONE_TENANT_ID と一致する利用者だけ通す。
+  // Supabase プロジェクトは複数アプリで共有されるため、「本物のユーザー」なだけでは入れない。
+  // テナント未設定なら誰も通さない（fail-closed）。登録方法は _lib/standalone-access.js 参照。
+  const tenantId = standaloneAccessTenantId();
+  if (!isStandaloneMember(user, tenantId)) {
+    console.warn(`[standalone-login] not_member uid=${uid} tenant_configured=${tenantId ? 'yes' : 'no'}`);
+    return res.status(403).json({ error: 'このアカウントには利用権限がありません。管理者にお問い合わせください' });
+  }
+
   // 自前 HMAC セッション基盤で nexus_session を発行（TTL=12時間）。
   // 表示名は email を控えめに使う（無ければ空）。
   const name = user && typeof user.email === 'string' ? user.email : '';
-  const sessionToken = issueSession({ uid, name });
+  // stid＝発行時の単体版テナント。auth-gate が各リクエストで env と照合する。
+  const sessionToken = issueSession({ uid, name, stid: tenantId });
   setCookie(res, SESSION_COOKIE, sessionToken, { maxAge: 60 * 60 * 12 });
 
   return res.status(200).json({ ok: true });

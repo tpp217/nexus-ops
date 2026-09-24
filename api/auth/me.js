@@ -28,6 +28,7 @@
 //   - プラットフォーム版（既定）は従来どおり 401／200 の挙動を一切変えない。
 import { verifyToken } from '../_lib/auth-gate.js';
 import { isStandalone } from '../_lib/app-mode.js';
+import { sessionMatchesStandaloneTenant } from '../_lib/standalone-access.js';
 import { verifySession, SESSION_COOKIE, parseCookies } from '../_lib/session.js';
 
 /** Cookie ヘッダから wh_token を取り出す（無ければ null）。 */
@@ -63,7 +64,8 @@ export default async function handler(req, res) {
   //   - 有効 → 200。氏名は session の email を控えめに使う（テナント名/部署は単体版では持たない）。
   if (isStandalone()) {
     const session = verifySession(parseCookies(req)[SESSION_COOKIE]);
-    if (!session) {
+    // stid（発行時テナント）が現在の STANDALONE_TENANT_ID と一致しないセッションは未ログイン扱い（auth-gate と同じ判定）。
+    if (!session || !sessionMatchesStandaloneTenant(session)) {
       return res.status(401).json({ ok: false, standalone: true, authenticated: false });
     }
     return res.status(200).json({
