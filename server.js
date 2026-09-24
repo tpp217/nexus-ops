@@ -66,7 +66,7 @@ async function authGate(req, res, next) {
 }
 
 // 永続業務データ用に tenant_id を解決する（authGate の後段で使う）。
-// 未解決は fail-closed（enforce 時 401／監視モードは utinc 既定にフォールバック）。
+// 未解決は AUTH_ENFORCE に関わらず fail-closed（401）。
 // /tables/* は authGate 済みなので req.authClaims が載っている。
 function reqTenantId(req, res) {
   const tenant = resolveTenant(req.authClaims);
@@ -97,7 +97,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // NOTE: VercelのAPI Routesに移行予定。VMでも動作するよう残しておく。
 
 // すべて自テナントに絞る（クロステナント漏洩防止）。tenant_id は
-// reqTenantId が JWT クレームから解決（監視モードは utinc 既定にフォールバック）。
+// reqTenantId が JWT クレームから解決（未解決は 401）。
 app.get('/tables/meeting_records', async (req, res) => {
   const tenantId = reqTenantId(req, res);
   if (tenantId === null) return; // fail-closed（応答は reqTenantId 内で送出済み）

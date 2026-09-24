@@ -56,18 +56,17 @@ export default async function handler(req, res) {
       { headers: { Authorization: `Bearer ${secret}` } },
     );
     if (!rosterRes.ok) return res.status(502).json({ ok: false, error: `roster API ${rosterRes.status}` });
-    const roster = await rosterRes.json();
-    const members = Array.isArray(roster && roster.members) ? roster.members : [];
+    const roster = await rosterRes.json().catch(() => null);
+    // members 配列が無い応答を「0 人」と解釈すると全員を無効化してしまうため、データに触らず失敗させる。
+    if (!roster || !Array.isArray(roster.members)) {
+      return res.status(502).json({ ok: false, error: 'roster API の応答に members 配列がありません' });
+    }
+    const members = roster.members;
 
-    // --- service_role(REST) で同期。名簿から消えた人は active=false ---
-    await sb(`member_directory?system_key=${eq(systemKey)}&tenant_id=${eq(tenantId)}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ active: false }),
-    });
-
+    // --- service_role(REST) で同期。先に upsert、成功後に今回触れなかった人だけ active=false ---
+    // （先に全員無効化すると upsert 失敗時に全員が無効のまま残るため順序を逆にする）
+    const now = new Date().toISOString();
     if (members.length) {
-      const now = new Date().toISOString();
       const rows = members.map((m) => ({
         system_key: systemKey,
         tenant_id: tenantId,
@@ -86,6 +85,18 @@ export default async function handler(req, res) {
         body: JSON.stringify(rows),
       });
     }
+
+    // 今回の upsert で synced_at=now にならなかった行＝名簿から消えた人。自テナント・自システムのみ。
+    // member_id の not.in リストは人数次第で URL 長上限を超えるため synced_at で判定する。
+    await sb(
+      `member_directory?system_key=${eq(systemKey)}&tenant_id=${eq(tenantId)}&active=is.true` +
+        `&or=(synced_at.is.null,synced_at.lt.${encodeURIComponent(now)})`,
+      {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ active: false }),
+      },
+    );
 
     return res.status(200).json({ ok: true, count: members.length });
   } catch (e) {
