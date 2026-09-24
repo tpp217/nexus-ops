@@ -13,11 +13,7 @@ function getSupabase() {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
+  // 同一オリジンのアプリのみが呼ぶため CORS ヘッダは出さない。
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: 'id が必要です' });
 
@@ -31,7 +27,7 @@ export default async function handler(req, res) {
   if (!auth.allowed) return sendBlock(res, auth);
 
   // テナント解決（id 指定でも必ず自テナントに絞る＝別テナントの行を id 推測で
-  // 読み書き削除できないようにする）。未解決は fail-closed（監視モードは utinc 既定）。
+  // 読み書き削除できないようにする）。未解決は fail-closed（401）。
   const tenant = resolveTenant(auth.claims);
   if (!tenant.ok) return sendBlock(res, tenantRequired());
   const tenantId = tenant.tenantId;

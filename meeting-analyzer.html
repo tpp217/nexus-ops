@@ -1333,6 +1333,7 @@ async function runAnalysis() {
     return skipPatterns.some(p => lo === p.toLowerCase() || lo.startsWith(p.toLowerCase()));
   };
   const newRecords = [];
+  let failedCount = 0;
 
   for (const { name, workbook } of pendingFiles) {
     for (const sheetName of workbook.SheetNames) {
@@ -1343,11 +1344,15 @@ async function runAnalysis() {
       if (hasContent) {
         record.source_file = name;
         const saved = await saveMeetingRecord(record);
-        newRecords.push(saved || record);
+        if (saved) newRecords.push(saved);
+        else failedCount++;
       }
     }
   }
 
+  if (failedCount) {
+    showToast(`${failedCount}件の保存に失敗しました。時間をおいて再度アップロードしてください。`, 'error', 8000);
+  }
   if (newRecords.length) {
     showToast(`${newRecords.length}件を保存しました。「AI総合分析」ボタンでAI分析を実行できます。`, 'info');
     allRecords = await loadMeetingRecords();
@@ -1358,7 +1363,7 @@ async function runAnalysis() {
     setProgress(false);
   } else {
     setProgress(false);
-    showToast('議事録データが見つかりませんでした。', 'warn');
+    if (!failedCount) showToast('議事録データが見つかりませんでした。', 'warn');
   }
   document.getElementById('btnAnalyze').disabled = false;
 }
@@ -1367,6 +1372,7 @@ async function runAnalysis() {
 async function runAiAnalysisForAll(records) {
   setProgress(true, `AI分析中... 0/${records.length}`);
   let done = 0;
+  let failed = 0;
 
   await Promise.all(records.map(async (record) => {
     try {
@@ -1374,7 +1380,7 @@ async function runAiAnalysisForAll(records) {
       if (result.ok) {
         const id = record.id;
         if (id) {
-          await authFetch(`tables/meeting_records/${id}`, {
+          const r = await authFetch(`tables/meeting_records/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1385,6 +1391,7 @@ async function runAiAnalysisForAll(records) {
               ai_actions_planned: JSON.stringify(result.ai_actions_planned  || [])
             })
           });
+          if (!r.ok) throw new Error(`保存失敗 ${r.status}`);
           // 完了したレコードをallRecordsに反映して即時表示更新
           const idx = allRecords.findIndex(r => String(r.id) === String(id));
           if (idx >= 0) {
@@ -1396,11 +1403,13 @@ async function runAiAnalysisForAll(records) {
         }
       }
     } catch(e) {
+      failed++;
       console.warn('AI analyze error for record', record.id, e.message);
     }
     done++;
     setProgress(true, `AI分析中... ${done}/${records.length}`);
   }));
+  if (failed) showToast(`${failed}件のAI分析結果を保存できませんでした。`, 'error', 6000);
 }
 
 document.getElementById('btnLoadSaved').addEventListener('click', async () => {
@@ -1428,7 +1437,9 @@ document.getElementById('btnLoadSaved').addEventListener('click', async () => {
 document.getElementById('btnClearAll').addEventListener('click', async () => {
   if (!confirm('全データを削除しますか？')) return;
   setProgress(true, '削除中...');
-  for (const r of allRecords) await deleteMeetingRecord(r.id);
+  // 読み込み済みの分だけでなくテナント全件をサーバ側で一括削除する（成功時のみ画面を空にする）。
+  const ok = await deleteAllMeetingRecords();
+  if (!ok) { setProgress(false); return; }
   allRecords = []; personMap = {}; storeMap = {}; activePerson = null; activeStore = null;
   setProgress(false);
   renderEmpty();
@@ -1669,7 +1680,10 @@ function renderTimeline(records) {
     btn.addEventListener('click', async e => {
       e.stopPropagation();
       if (!confirm('この議事録を削除しますか？')) return;
-      await deleteMeetingRecord(btn.dataset.id);
+      if (!(await deleteMeetingRecord(btn.dataset.id))) {
+        showToast('削除に失敗しました。時間をおいて再度お試しください。', 'error', 6000);
+        return;
+      }
       allRecords = allRecords.filter(r => r.id !== btn.dataset.id);
       buildPersonMap(allRecords);
       renderPersonTabs();

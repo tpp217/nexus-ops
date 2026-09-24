@@ -840,6 +840,7 @@ function buildFutureDirection(allData, { persistentStrengths, persistentChalleng
 // 重複判定はサーバの upsert(onConflict: 'sheet_name,source_file') に一本化する。
 // 旧実装は limit=200 の先頭ページ内でしか重複を探さず、それを超える既存レコードを
 // 取りこぼして二重登録していた。常に POST し、サーバ側で挿入/更新を判定させる。
+// 失敗時は null を返す（呼び出し側は null を保存失敗として数える）。
 async function saveMeetingRecord(record) {
   try {
     const r = await authFetch('tables/meeting_records', {
@@ -847,16 +848,25 @@ async function saveMeetingRecord(record) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(record)
     });
+    if (!r.ok) { console.error('save failed', r.status); return null; }
     return await r.json();
   } catch(e) { console.error(e); return null; }
 }
 
+// サーバはページングで返すため、total に達するまで全ページを読む（先頭ページだけの表示を防ぐ）。
+const MEETING_PAGE_SIZE = 1000;
 async function loadMeetingRecords() {
   try {
-    const r = await authFetch('tables/meeting_records?limit=300');
-    if (!r.ok) return [];
-    const d = await r.json();
-    return (d.data || []).sort((a, b) => {
+    const all = [];
+    for (let offset = 0; ; offset += MEETING_PAGE_SIZE) {
+      const r = await authFetch(`tables/meeting_records?limit=${MEETING_PAGE_SIZE}&offset=${offset}`);
+      if (!r.ok) throw new Error(`API ${r.status}`);
+      const d = await r.json();
+      const page = d.data || [];
+      all.push(...page);
+      if (page.length < MEETING_PAGE_SIZE || all.length >= (d.total ?? 0)) break;
+    }
+    return all.sort((a, b) => {
       // year_month（例:「2025年1月」）があればそれで比較、なければ date → sheet_name
       const parseYM = rec => {
         if (rec.year_month) {
@@ -869,11 +879,30 @@ async function loadMeetingRecords() {
       };
       return parseYM(a) - parseYM(b);
     });
-  } catch { return []; }
+  } catch (e) {
+    console.error(e);
+    showToast('保存データの読み込みに失敗しました。時間をおいて再度お試しください。', 'error', 6000);
+    return [];
+  }
 }
 
+// 成功時のみ true。呼び出し側は false のとき画面から消さない。
 async function deleteMeetingRecord(id) {
-  try { await authFetch(`tables/meeting_records/${id}`, { method: 'DELETE' }); } catch {}
+  try {
+    const r = await authFetch(`tables/meeting_records/${id}`, { method: 'DELETE' });
+    return r.ok;
+  } catch (e) { console.error(e); return false; }
+}
+
+// 自テナントの議事録を一括削除（サーバ側で level 0/1 に限定）。成功時のみ true。
+async function deleteAllMeetingRecords() {
+  try {
+    const r = await authFetch('tables/meeting_records', { method: 'DELETE' });
+    if (r.ok) return true;
+    // 403 の文言は authFetch が画面に表示済み
+    if (r.status !== 403) showToast(`全件削除に失敗しました（${r.status}）。`, 'error', 6000);
+    return false;
+  } catch (e) { console.error(e); return false; }
 }
 
 /* ─── formatDate ─── */
