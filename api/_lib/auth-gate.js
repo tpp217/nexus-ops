@@ -23,6 +23,7 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { isStandalone } from './app-mode.js';
 import { verifySession, extractCookie, SESSION_COOKIE } from './session.js';
+import { sessionMatchesStandaloneTenant } from './standalone-access.js';
 
 const DEFAULT_JWKS_URL = 'https://auth.utinc.dev/.well-known/jwks.json';
 // workspace-hub SYSTEM_CATALOG の 'nexus' と一致（AUTH_SYSTEM_KEY で上書き可）
@@ -191,6 +192,12 @@ export async function evaluateAuth({ authHeader, cookieHeader, method = '', path
     const session = verifySession(extractCookie(cookieHeader, SESSION_COOKIE));
     if (!session) {
       console.warn(`${tag} no_local_session`);
+      return { allowed: false, status: 401, body: { error: 'ログインが必要です' } };
+    }
+    // セッションに刻んだテナント（stid）が現在の STANDALONE_TENANT_ID と一致するか。
+    // 入室許可の判定導入前に発行されたセッションや、テナント変更前のセッションは再ログインさせる。
+    if (!sessionMatchesStandaloneTenant(session)) {
+      console.warn(`${tag} session_tenant_mismatch`);
       return { allowed: false, status: 401, body: { error: 'ログインが必要です' } };
     }
     return { allowed: true };

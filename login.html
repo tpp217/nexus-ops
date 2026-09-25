@@ -158,6 +158,13 @@
           })
           .then(function (r) {
             if (!r) return; // 上で失敗処理済み
+            if (r.status === 403) {
+              // 利用権限なし（入室許可の印が無い）: サーバーの文言をそのまま表示する。
+              return r.json().catch(function () { return null; }).then(function (j) {
+                setMsg((j && j.error) || 'このアカウントには利用権限がありません。管理者にお問い合わせください');
+                submitEl.disabled = false;
+              });
+            }
             if (!r.ok) {
               setMsg('ログインに失敗しました。時間をおいて再度お試しください。');
               submitEl.disabled = false;
